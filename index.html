@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>국가 비상대비 전술 지도 & 로드뷰 대피 시뮬레이터</title>
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- 카카오 지도 API (YOUR_KAKAO_JAVASCRIPT_KEY 부분을 발급받은 키로 교체하세요) -->
+  <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JAVASCRIPT_KEY&libraries=services"></script>
+  <style>
+    .hud-overlay { background: rgba(10, 15, 25, 0.85); backdrop-filter: blur(8px); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen flex flex-col font-sans overflow-hidden">
+
+  <!-- 상단 컨트롤 헤더 -->
+  <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-3 flex justify-between items-center z-10">
+    <div class="flex items-center space-x-3">
+      <i data-lucide="shield-alert" class="text-amber-500 w-6 h-6"></i>
+      <h1 class="text-lg font-bold tracking-wider text-slate-100">전시 대피 & 타격 시뮬레이션 [카카오맵 실시간 연동]</h1>
+    </div>
+    <div class="flex items-center space-x-4">
+      <div id="status-badge" class="px-3 py-1 bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-xs rounded-full font-mono">
+        시스템 정상 작동 중
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 레이아웃 (좌: 지도 / 우: 로드뷰 및 대피 정보) -->
+  <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+    
+    <!-- 지도 영역 -->
+    <div class="flex-1 relative border-r border-slate-800">
+      <div id="map" class="w-full h-full bg-slate-900"></div>
+      
+      <!-- 지도 위 안내 HUD -->
+      <div class="absolute top-4 left-4 z-10 hud-overlay p-4 rounded-lg border border-slate-700/60 max-w-sm pointer-events-none">
+        <p class="text-xs text-amber-400 font-semibold mb-1 flex items-center">
+          <i data-lucide="mouse-pointer-click" class="w-4 h-4 mr-1"></i> 지형 클릭 조작
+        </p>
+        <p class="text-xs text-slate-300">지도를 클릭하면 해당 위치가 **폭격 표적**으로 설정되며, **가장 가까운 지하 대피소**와 **실시간 로드뷰 현장 화면**이 자동 연동됩니다.</p>
+      </div>
+    </div>
+
+    <!-- 우측 정보 및 로드뷰 패널 -->
+    <aside class="w-full md:w-96 bg-slate-900/95 flex flex-col border-l border-slate-800 z-10">
+      
+      <!-- 실시간 카카오 로드뷰 창 -->
+      <div class="h-64 relative border-b border-slate-800 bg-black">
+        <div id="roadview" class="w-full h-full"></div>
+        <div class="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-1 rounded text-[10px] font-mono text-cyan-400 border border-cyan-500/30 flex items-center">
+          <i data-lucide="camera" class="w-3 h-3 mr-1"></i> 타격 위치 현장 파노라마
+        </div>
+        <div id="roadview-error" class="hidden absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-4 text-center">
+          <i data-lucide="eye-off" class="w-8 h-8 text-slate-500 mb-2"></i>
+          <p class="text-xs text-slate-400">선택한 지점 근처에 이용 가능한 카카오 로드뷰 데이터가 없습니다.</p>
+        </div>
+      </div>
+
+      <!-- 상황 분석 및 대피소 정보 -->
+      <div class="flex-1 p-5 overflow-y-auto space-y-5">
+        
+        <!-- 표적 정보 카드 -->
+        <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+          <h2 class="text-xs text-slate-400 font-mono mb-2 flex items-center">
+            <i data-lucide="crosshair" class="w-4 h-4 text-red-500 mr-1.5"></i> 지정 타격 좌표 분석
+          </h2>
+          <div class="space-y-1 font-mono text-sm">
+            <p class="text-slate-200" id="target-address">위치: 지도를 클릭하세요</p>
+            <p class="text-xs text-slate-400" id="target-coords">좌표: - , -</p>
+            <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[10px]">미사일 도달 예상</span>
+                <span id="eta-value" class="text-red-400 font-bold text-base">-- 초</span>
+              </div>
+              <div class="bg-slate-900 p-2 rounded border border-slate-800">
+                <span class="text-slate-400 block text-[10px]">1차 피해 반경</span>
+                <span class="text-amber-400 font-bold text-base">1.5 km</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 가장 가까운 대피소 및 대피 동선 -->
+        <div class="bg-slate-950/60 p-4 rounded-lg border border-slate-800">
+          <h2 class="text-xs text-slate-400 font-mono mb-2 flex items-center">
+            <i data-lucide="navigation" class="w-4 h-4 text-emerald-400 mr-1.5"></i> 권장 최단 대피소
+          </h2>
+          <div class="space-y-2">
+            <p id="shelter-name" class="font-bold text-emerald-400 text-base">--</p>
+            <p id="shelter-dist" class="text-xs text-slate-300">도보 직선거리: --</p>
+            <div class="p-3 bg-emerald-950/30 rounded border border-emerald-500/20 text-xs text-emerald-200/90 leading-relaxed">
+              <span class="font-bold block mb-1">💡 비상 대피 수칙</span>
+              대피 시 엘리베이터 이용을 금지하고 **비상계단**을 이용하십시오. 지상 노출을 최대한 줄이고 지하 2층 이하 대피 공간으로 신속히 이동해야 합니다.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    var mapContainer = document.getElementById('map');
+    var mapOptions = {
+      center: new kakao.maps.LatLng(37.5665, 126.9780),
+      level: 5
+    };
+    var map = new kakao.maps.Map(mapContainer, mapOptions);
+
+    var roadviewContainer = document.getElementById('roadview');
+    var roadview = new kakao.maps.Roadview(roadviewContainer);
+    var roadviewClient = new kakao.maps.RoadviewClient();
+    var geocoder = new kakao.maps.services.Geocoder();
+
+    var targetMarker = null;
+    var blastCircle = null;
+    var evacuationPolyline = null;
+
+    var sampleShelters = [
+      { name: "광화문역 지하 역사 (지하 3층)", lat: 37.5709, lng: 126.9769 },
+      { name: "용산역 지하 주차장 (지하 2층)", lat: 37.5298, lng: 126.9648 },
+      { name: "죽전역 지하 통로 및 주차장", lat: 37.3243, lng: 127.1082 },
+      { name: "포항 두호동 주민센터 지하대피소", lat: 36.0560, lng: 129.3785 }
+    ];
+
+    kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+      updateTargetPosition(mouseEvent.latLng);
+    });
+
+    function updateTargetPosition(position) {
+      var lat = position.getLat();
+      var lng = position.getLng();
+
+      if (targetMarker) targetMarker.setMap(null);
+      if (blastCircle) blastCircle.setMap(null);
+      if (evacuationPolyline) evacuationPolyline.setMap(null);
+
+      targetMarker = new kakao.maps.Marker({ position: position, map: map });
+
+      blastCircle = new kakao.maps.Circle({
+        center: position,
+        radius: 1500,
+        strokeWeight: 2,
+        strokeColor: '#ff4444',
+        strokeOpacity: 0.8,
+        strokeStyle: 'dashed',
+        fillColor: '#ff0000',
+        fillOpacity: 0.25,
+        map: map
+      });
+
+      document.getElementById('target-coords').innerText = `좌표: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      geocoder.coord2Address(lng, lat, function(result, status) {
+        if (status === kakao.maps.services.Status.OK) {
+          document.getElementById('target-address').innerText = `위치: ${result[0].address.address_name}`;
+        }
+      });
+
+      var etaSeconds = Math.floor(Math.random() * 20) + 35;
+      document.getElementById('eta-value').innerText = `${etaSeconds} 초`;
+
+      var nearestShelter = findNearestShelter(lat, lng);
+      document.getElementById('shelter-name').innerText = nearestShelter.name;
+      document.getElementById('shelter-dist').innerText = `도보 직선거리: 약 ${Math.round(nearestShelter.distance)} m`;
+
+      var shelterLatLng = new kakao.maps.LatLng(nearestShelter.lat, nearestShelter.lng);
+      evacuationPolyline = new kakao.maps.Polyline({
+        path: [position, shelterLatLng],
+        strokeWeight: 4,
+        strokeColor: '#00ff66',
+        strokeOpacity: 0.9,
+        strokeStyle: 'solid',
+        map: map
+      });
+
+      roadviewClient.getNearestPanoId(position, 100, function(panoId) {
+        var errorDiv = document.getElementById('roadview-error');
+        if (panoId) {
+          errorDiv.classList.add('hidden');
+          roadview.setPanoId(panoId, position);
+        } else {
+          errorDiv.classList.remove('hidden');
+        }
+      });
+    }
+
+    function findNearestShelter(lat, lng) {
+      var minDistance = Infinity;
+      var nearest = null;
+      sampleShelters.forEach(function(shelter) {
+        var dLat = (shelter.lat - lat) * 111000;
+        var dLng = (shelter.lng - lng) * 88800;
+        var dist = Math.sqrt(dLat * dLat + dLng * dLng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearest = { ...shelter, distance: dist };
+        }
+      });
+      return nearest;
+    }
+  </script>
+</body>
+</html>
