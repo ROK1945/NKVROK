@@ -2,38 +2,107 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>국가 비상대비 타격·피난 시뮬레이터</title>
-    <!-- Leaflet CSS (OpenStreetMap 엔진 - API 키 필요없음) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>비상대비 타격·피난 시뮬레이터</title>
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; height: 100vh; }
-        header { background: #1e293b; padding: 14px 16px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        header h1 { font-size: 1.05rem; font-weight: 700; color: #ef4444; display: flex; align-items: center; gap: 6px; }
-        #container { display: flex; flex: 1; position: relative; }
-        #map { width: 100%; height: 100%; background: #020617; }
-        #hud { position: absolute; top: 12px; right: 12px; z-index: 1000; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 14px; border-radius: 8px; width: 260px; font-size: 0.8rem; }
-        #hud h2 { font-size: 0.9rem; color: #38bdf8; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 4px; }
-        .hud-item { margin-bottom: 6px; display: flex; justify-content: space-between; }
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
+        #app { display: flex; flex-direction: column; width: 100vw; height: 100vh; }
+        header { height: 50px; background: #1e293b; padding: 0 16px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 1001; }
+        header h1 { font-size: 1rem; font-weight: 700; color: #ef4444; margin: 0; }
+        #container { position: relative; flex: 1; width: 100%; height: calc(100vh - 50px); }
+        #map { width: 100%; height: 100%; background: #1e293b; }
+        #hud { position: absolute; top: 12px; right: 12px; z-index: 1000; background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 12px; border-radius: 8px; width: 220px; font-size: 0.75rem; pointer-events: none; }
+        #hud h2 { font-size: 0.85rem; color: #38bdf8; margin: 0 0 8px 0; border-bottom: 1px solid #334155; padding-bottom: 4px; }
+        .hud-item { margin-bottom: 4px; display: flex; justify-content: space-between; }
         .hud-label { color: #94a3b8; }
         .hud-value { font-weight: 600; color: #f1f5f9; }
-        .alert-box { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 6px; border-radius: 4px; margin-top: 8px; font-size: 0.75rem; text-align: center; }
+        .alert-box { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 4px; border-radius: 4px; margin-top: 6px; font-size: 0.7rem; text-align: center; }
     </style>
 </head>
 <body>
 
-<header>
-    <h1>🚨 비상대비 타격·피난 시뮬레이터</h1>
-</header>
+<div id="app">
+    <header>
+        <h1>🚨 비상대비 타격·피난 시뮬레이터</h1>
+    </header>
 
-<div id="container">
-    <div id="map"></div>
-    
-    <div id="hud">
-        <h2>위협 분석 HUD</h2>
-        <div class="hud-item"><span class="hud-label">타격 상태:</span><span class="hud-value" id="status">대기 중</span></div>
-        <div class="hud-item"><span class="hud-label">타격 좌표:</span><span class="hud-value" id="coords">-</span></div>
-        <div class="hud-item"><span class="hud-label">폭발 반경:</span><span class="hud-value" style="color:#ef4444;">1.5 km (피해 구역)</span></div>
-        <div class="hud-item"><span class="hud-label">권장 대피:</span><span class="hud-value" id="evac-dir" style="color:#4ade80;">-</span></div>
-        <div id="alert" class="alert-box" style="display:
+    <div id="container">
+        <div id="map"></div>
+        
+        <div id="hud">
+            <h2>위협 분석 HUD</h2>
+            <div class="hud-item"><span class="hud-label">타격 상태:</span><span class="hud-value" id="status">대기 중</span></div>
+            <div class="hud-item"><span class="hud-label">타격 좌표:</span><span class="hud-value" id="coords">-</span></div>
+            <div class="hud-item"><span class="hud-label">폭발 반경:</span><span class="hud-value" style="color:#ef4444;">1.5 km (피해 구역)</span></div>
+            <div class="hud-item"><span class="hud-label">권장 대피:</span><span class="hud-value" id="evac-dir" style="color:#4ade80;">-</span></div>
+            <div id="alert" class="alert-box" style="display:none;">⚠️ 즉시 지하 대피소로 이동!</div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. 서울 중심 지도 생성 및 크기 즉시 갱신
+    const map = L.map('map', {
+        zoomControl: true
+    }).setView([37.5665, 126.9780], 12);
+
+    // 2. 오픈스트리트맵 타일
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 모바일 렌더링 강제 갱신
+    setTimeout(() => { map.invalidateSize(); }, 300);
+
+    let strikeMarker = null;
+    let impactCircle = null;
+    let enemyPath = null;
+    let evacPath = null;
+
+    // 3. 지도 터치 클릭 시 그래픽 출력
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        if (strikeMarker) map.removeLayer(strikeMarker);
+        if (impactCircle) map.removeLayer(impactCircle);
+        if (enemyPath) map.removeLayer(enemyPath);
+        if (evacPath) map.removeLayer(evacPath);
+
+        strikeMarker = L.marker([lat, lng]).addTo(map).bindPopup("<b>타격 지점</b>").openPopup();
+        impactCircle = L.circle([lat, lng], {
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.35,
+            radius: 1500
+        }).addTo(map);
+
+        const northLat = lat + 0.04;
+        const northLng = lng - 0.015;
+        enemyPath = L.polyline([[northLat, northLng], [lat, lng]], {
+            color: '#ef4444',
+            weight: 4,
+            dashArray: '8, 8'
+        }).addTo(map);
+
+        const evacLat = lat - 0.015;
+        const evacLng = lng + 0.015;
+        evacPath = L.polyline([[lat, lng], [evacLat, evacLng]], {
+            color: '#22c55e',
+            weight: 5
+        }).addTo(map);
+
+        document.getElementById('status').innerText = "타격 발생";
+        document.getElementById('status').style.color = "#ef4444";
+        document.getElementById('coords').innerText = `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+        document.getElementById('evac-dir').innerText = "남동쪽 대피소";
+        document.getElementById('alert').style.display = "block";
+    });
+</script>
+</body>
+</html>
