@@ -7,49 +7,162 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
-        #app { display: flex; flex-direction: column; width: 100vw; height: 100vh; }
-        header { height: 48px; background: #1e293b; padding: 0 16px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 1001; }
-        header h1 { font-size: 0.95rem; font-weight: 700; color: #ef4444; margin: 0; }
-        #container { position: relative; flex: 1; width: 100%; height: calc(100vh - 48px); display: flex; flex-direction: column; }
-        #map { width: 100%; flex: 1; background: #020617; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
+        
+        header { position: absolute; top: 0; left: 0; right: 0; height: 44px; background: #1e293b; padding: 0 16px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; z-index: 1001; }
+        header h1 { font-size: 0.9rem; font-weight: 700; color: #ef4444; margin: 0; }
+        
+        /* 지도를 화면 전체에 절대좌표로 고정 */
+        #map { position: absolute; top: 44px; bottom: 160px; left: 0; right: 0; background: #020617; z-index: 1; }
         
         /* 위협 분석 HUD */
-        #hud { position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 10px 12px; border-radius: 8px; width: 230px; font-size: 0.75rem; pointer-events: none; }
-        #hud h2 { font-size: 0.82rem; color: #38bdf8; margin: 0 0 6px 0; border-bottom: 1px solid #334155; padding-bottom: 4px; display: flex; justify-content: space-between; }
+        #hud { position: absolute; top: 54px; right: 10px; z-index: 1000; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 10px 12px; border-radius: 8px; width: 220px; font-size: 0.75rem; pointer-events: none; }
+        #hud h2 { font-size: 0.8rem; color: #38bdf8; margin: 0 0 6px 0; border-bottom: 1px solid #334155; padding-bottom: 4px; display: flex; justify-content: space-between; }
         .hud-item { margin-bottom: 4px; display: flex; justify-content: space-between; }
         .hud-label { color: #94a3b8; }
         .hud-value { font-weight: 600; color: #f1f5f9; text-align: right; }
         
-        /* 화상/핵열풍 생존 행동요령 하단 레이어 */
-        #guide-panel { background: #1e293b; border-top: 2px solid #ef4444; padding: 12px 16px; max-height: 180px; overflow-y: auto; z-index: 1001; font-size: 0.78rem; }
-        #guide-panel h3 { color: #f59e0b; font-size: 0.85rem; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-        .guide-step { margin-bottom: 4px; color: #cbd5e1; line-height: 1.3; }
+        /* 하단 화상/열풍 행동요령 레이어 */
+        #guide-panel { position: absolute; bottom: 0; left: 0; right: 0; height: 160px; background: #1e293b; border-top: 2px solid #ef4444; padding: 10px 14px; overflow-y: auto; z-index: 1001; font-size: 0.75rem; }
+        #guide-panel h3 { color: #f59e0b; font-size: 0.82rem; margin-bottom: 4px; }
+        .guide-step { margin-bottom: 3px; color: #cbd5e1; line-height: 1.3; }
         .highlight { color: #ef4444; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div id="app">
-    <header>
-        <h1>🚨 비상대비 시뮬레이터 & 화상/열풍 행동요령</h1>
-    </header>
+<header>
+    <h1>🚨 비상대비 시뮬레이터 & 화상/열풍 행동요령</h1>
+</header>
 
-    <div id="container">
-        <div id="map"></div>
-        
-        <div id="hud">
-            <h2>위협 분석 HUD <span>RAND/KIDA</span></h2>
-            <div class="hud-item"><span class="hud-label">타격 상태:</span><span class="hud-value" id="status">대기 중</span></div>
-            <div class="hud-item"><span class="hud-label">타격 좌표:</span><span class="hud-value" id="coords">-</span></div>
-            <div class="hud-item"><span class="hud-label">지형 감쇄:</span><span class="hud-value" style="color:#38bdf8;">산악 방벽 적용</span></div>
-            <div class="hud-item"><span class="hud-label">추천 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">-</span></div>
-            <div class="hud-item"><span class="hud-label">최단 거리:</span><span class="hud-value" id="evac-dist" style="color:#4ade80;">-</span></div>
-        </div>
+<div id="map"></div>
 
-        <div id="guide-panel">
-            <h3>🔥 화상·핵열풍 및 폭발 공격 시 생존 행동요령</h3>
-            <div class="guide-step">1. <span class="highlight">섬광 감지 즉시:</span> 폭발 반대 방향으로 업드리고 눈과 귀를 막습니다 (입은 약간 벌림).</div>
-            <div class="guide-step">2. <span class="highlight">열풍 방어:</span> 피부 노출을 최소화하고, 옷에 불이 붙으면 바닥에 구릅니다.</div>
-            <div class="guide-step">3. <span class="highlight">화상 응급처치:</span> 옷을 강제로 떼어내지 말고 깨끗한 물로 열을 식힌 후 즉시 지하 대피소로 이동합니다.</div>
-            <div class="guide-step">4. <span class="highlight">대피소 선택:</span> 지하 2층 이하 콘크리트 구조물(1등급)이
+<div id="hud">
+    <h2>위협 분석 HUD <span>RAND/KIDA</span></h2>
+    <div class="hud-item"><span class="hud-label">타격 상태:</span><span class="hud-value" id="status">대기 중</span></div>
+    <div class="hud-item"><span class="hud-label">타격 좌표:</span><span class="hud-value" id="coords">-</span></div>
+    <div class="hud-item"><span class="hud-label">지형 감쇄:</span><span class="hud-value" style="color:#38bdf8;">산악 방벽 적용</span></div>
+    <div class="hud-item"><span class="hud-label">추천 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">-</span></div>
+    <div class="hud-item"><span class="hud-label">최단 거리:</span><span class="hud-value" id="evac-dist" style="color:#4ade80;">-</span></div>
+</div>
+
+<div id="guide-panel">
+    <h3>🔥 화상·핵열풍 및 폭발 공격 시 생존 행동요령</h3>
+    <div class="guide-step">1. <span class="highlight">섬광 감지 즉시:</span> 폭발 반대 방향으로 엎드리고 눈과 귀를 막습니다 (입은 약간 벌림).</div>
+    <div class="guide-step">2. <span class="highlight">열풍 방어:</span> 피부 노출을 최소화하고, 옷에 불이 붙으면 바닥에 구릅니다.</div>
+    <div class="guide-step">3. <span class="highlight">화상 응급처치:</span> 옷을 강제로 떼어내지 말고 깨끗한 물로 열을 식힌 후 즉시 지하 대피소로 이동합니다.</div>
+    <div class="guide-step">4. <span class="highlight">대피소 선택:</span> 지하 2층 이하 콘크리트 구조물(1등급)이 화상·방사능 차폐에 가장 안전합니다.</div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. 전국 주요 대피소 목록 (마커 렌더링용)
+    const shelterDB = [
+        { name: "김천역 지하보도", lat: 36.1210, lng: 128.1180, grade: "1등급 (지하철/지하도)" },
+        { name: "김천시청 지하주차장", lat: 36.1390, lng: 128.1130, grade: "1등급 (지하건물)" },
+        { name: "신음동 대형마트 지하층", lat: 36.1350, lng: 128.1250, grade: "2등급 (지하주차장)" },
+        { name: "교동 주민센터 지하실", lat: 36.1450, lng: 128.1050, grade: "2등급 (지하실)" },
+        { name: "서울역 지하철 1호선", lat: 37.5547, lng: 126.9706, grade: "1등급 (지하철)" },
+        { name: "대전역 지하상가", lat: 36.3315, lng: 127.4330, grade: "1등급 (지하도)" }
+    ];
+
+    // 2. 지도 초기화
+    const map = L.map('map', { zoomControl: true }).setView([36.138, 128.118], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 대피소 마커 생성
+    shelterDB.forEach(shelter => {
+        L.marker([shelter.lat, shelter.lng])
+            .addTo(map)
+            .bindPopup(`<b>🏥 ${shelter.name}</b><br><span style="color:#38bdf8;">${shelter.grade}</span>`);
+    });
+
+    // 강제 리사이즈 호출 (모바일 지도 안 뜨는 문제 방지)
+    setTimeout(() => { map.invalidateSize(); }, 300);
+    setTimeout(() => { map.invalidateSize(); }, 1000);
+
+    let strikeMarker = null;
+    let impactPolygon = null;
+    let enemyPath = null;
+    let evacPath = null;
+
+    function calcDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function findNearestShelter(lat, lng) {
+        let nearest = shelterDB[0];
+        let minDist = calcDistance(lat, lng, nearest.lat, nearest.lng);
+
+        for (let i = 1; i < shelterDB.length; i++) {
+            const dist = calcDistance(lat, lng, shelterDB[i].lat, shelterDB[i].lng);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = shelterDB[i];
+            }
+        }
+        return { shelter: nearest, distance: minDist };
+    }
+
+    // 3. 지도 터치 및 클릭 시 렌더링
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+
+        if (strikeMarker) map.removeLayer(strikeMarker);
+        if (impactPolygon) map.removeLayer(impactPolygon);
+        if (enemyPath) map.removeLayer(enemyPath);
+        if (evacPath) map.removeLayer(evacPath);
+
+        strikeMarker = L.marker([lat, lng]).addTo(map).bindPopup("<b style='color:#ef4444;'>💣 폭발/타격 지점</b>").openPopup();
+
+        const polygonPoints = [];
+        const baseRadius = 0.015;
+        for (let i = 0; i < 360; i += 30) {
+            const rad = i * Math.PI / 180;
+            const factor = (i > 90 && i < 210) ? 0.65 : 1.0;
+            const pLat = lat + (baseRadius * factor * Math.sin(rad));
+            const pLng = lng + (baseRadius * factor * Math.cos(rad) * 1.2);
+            polygonPoints.push([pLat, pLng]);
+        }
+        impactPolygon = L.polygon(polygonPoints, {
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.4
+        }).addTo(map);
+
+        enemyPath = L.polyline([[lat + 0.05, lng - 0.02], [lat, lng]], {
+            color: '#ef4444',
+            weight: 4,
+            dashArray: '8, 8'
+        }).addTo(map);
+
+        const result = findNearestShelter(lat, lng);
+        const shelter = result.shelter;
+
+        evacPath = L.polyline([[lat, lng], [shelter.lat, shelter.lng]], {
+            color: '#22c55e',
+            weight: 5
+        }).addTo(map);
+
+        document.getElementById('status').innerText = "타격 분석 완료";
+        document.getElementById('status').style.color = "#ef4444";
+        document.getElementById('coords').innerText = `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+        document.getElementById('evac-name').innerText = shelter.name;
+        document.getElementById('evac-dist').innerText = `${result.distance.toFixed(2)} km`;
+    });
+</script>
+</body>
+</html>
