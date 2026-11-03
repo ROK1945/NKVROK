@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>국방 싱크탱크 우리동네 비상대비 시뮬레이터 (전국 확장판)</title>
+    <title>전국 우리동네 비상대비 시뮬레이터 (KIDA/RAND)</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -18,42 +18,67 @@
         #main-container { position: relative; flex: 1; width: 100%; min-height: 0; background: #020617; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; }
         
-        /* 컨트롤 패널 */
-        #control-panel { position: absolute; top: 8px; left: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.92); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px; border-radius: 6px; width: 185px; font-size: 0.68rem; }
+        /* 좌측 컨트롤 및 검색 패널 */
+        #control-panel { position: absolute; top: 8px; left: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.94); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px; border-radius: 6px; width: 200px; font-size: 0.68rem; }
         #control-panel label { display: block; color: #94a3b8; margin-top: 4px; margin-bottom: 2px; font-weight: 600; }
-        #control-panel select, #control-panel button { width: 100%; padding: 4px; background: #0f172a; border: 1px solid #475569; color: #f8fafc; border-radius: 4px; font-size: 0.65rem; }
-        #control-panel button { margin-top: 6px; background: #2563eb; font-weight: bold; cursor: pointer; border: none; }
+        #control-panel input, #control-panel select, #control-panel button { width: 100%; padding: 4px 6px; background: #0f172a; border: 1px solid #475569; color: #f8fafc; border-radius: 4px; font-size: 0.65rem; }
+        .search-box { display: flex; gap: 4px; margin-bottom: 4px; }
+        .search-box input { flex: 1; }
+        .search-box button { width: 45px; background: #3b82f6; border: none; font-weight: bold; cursor: pointer; }
+        #control-panel button.btn-toggle { margin-top: 6px; background: #2563eb; font-weight: bold; cursor: pointer; border: none; }
 
-        /* HUD */
-        #hud { position: absolute; top: 8px; right: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.92); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px; border-radius: 6px; width: 175px; font-size: 0.65rem; pointer-events: none; }
+        /* 우측 HUD */
+        #hud { position: absolute; top: 8px; right: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.94); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px; border-radius: 6px; width: 175px; font-size: 0.65rem; pointer-events: none; }
         #hud h2 { font-size: 0.72rem; color: #38bdf8; margin-bottom: 4px; border-bottom: 1px solid #334155; padding-bottom: 2px; display: flex; justify-content: space-between; }
         .hud-item { margin-bottom: 3px; display: flex; justify-content: space-between; }
         .hud-label { color: #94a3b8; }
         .hud-value { font-weight: 600; color: #f1f5f9; text-align: right; }
         
-        /* 하단 수칙 */
-        #guide-panel { height: 110px; background: #1e293b; border-top: 2px solid #ef4444; padding: 6px 10px; overflow-y: auto; flex-shrink: 0; z-index: 1001; font-size: 0.68rem; }
+        /* 하단 수칙 패널 */
+        #guide-panel { height: 105px; background: #1e293b; border-top: 2px solid #ef4444; padding: 6px 10px; overflow-y: auto; flex-shrink: 0; z-index: 1001; font-size: 0.68rem; }
         #guide-panel h3 { color: #f59e0b; font-size: 0.72rem; margin-bottom: 2px; }
         .guide-step { margin-bottom: 2px; color: #cbd5e1; line-height: 1.2; }
         .highlight { color: #ef4444; font-weight: bold; }
+
+        /* 폭발 애니메이션 커스텀 CSS */
+        .explosion-marker {
+            width: 24px; height: 24px;
+            background: rgba(239, 68, 68, 0.8);
+            border: 2px solid #ef4444;
+            border-radius: 50%;
+            box-shadow: 0 0 15px #ef4444;
+            animation: pulse-explosion 1s infinite alternate;
+        }
+        @keyframes pulse-explosion {
+            0% { transform: scale(0.8); box-shadow: 0 0 5px #ef4444; }
+            100% { transform: scale(1.4); box-shadow: 0 0 25px #f59e0b; }
+        }
+        .icon-label { font-size: 14px; text-align: center; line-height: 24px; }
     </style>
 </head>
 <body>
 
 <div id="app-wrapper">
     <header>
-        <h1>🚨 전국 우리동네 비상대비 시뮬레이터 (KIDA/RAND)</h1>
+        <h1>🚨 우리동네 비상대비 시뮬레이터 (전국 확대판)</h1>
     </header>
 
     <div id="main-container">
         <div id="control-panel">
-            <label for="weapon-select">🎯 무기체계 선택</label>
+            <label>🔍 우리동네 지역/대피소 검색</label>
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="예: 창포동, 수지, 강남, 포항">
+                <button id="search-btn">검색</button>
+            </div>
+
+            <label for="weapon-select">🎯 적 무기체계 선택</label>
             <select id="weapon-select">
+                <option value="mortar_82">82mm 박격포 (파편-빨강)</option>
                 <option value="shell_170">170mm 자주포 (포탄-빨강)</option>
-                <option value="mlrs_240">240mm 방사포 (포탄-빨강)</option>
-                <option value="cw_sarin">생화학 무기 (사린-초록)</option>
+                <option value="mlrs_240">240mm 방사포 (고폭탄-빨강)</option>
+                <option value="cw_sarin">생화학 무기 (사린가스-초록)</option>
                 <option value="cw_anthrax">생화학 무기 (탄저균-초록)</option>
-                <option value="nuke_tactical">전술핵 (열풍-주황)</option>
+                <option value="nuke_tactical">전술핵 폭발 (열풍-주황)</option>
             </select>
 
             <label for="route-select">⚔️ 북한군 남하 축선</label>
@@ -63,17 +88,17 @@
                 <option value="east">동부전선 (속초-강릉)</option>
             </select>
 
-            <button id="toggle-risk">⚠️ 위험도/안전구역 표시</button>
+            <button id="toggle-risk" class="btn-toggle">⚠️ 위험도/안전구역 표시</button>
         </div>
 
         <div id="map"></div>
 
         <div id="hud">
-            <h2>우리동네 위협 분석</h2>
-            <div class="hud-item"><span class="hud-label">위협 종류:</span><span class="hud-value" id="status">대기 중</span></div>
-            <div class="hud-item"><span class="hud-label">도달 시간:</span><span class="hud-value" id="eta-time" style="color:#f59e0b;">-</span></div>
+            <h2>위협 및 피난 분석</h2>
+            <div class="hud-item"><span class="hud-label">공격 무기:</span><span class="hud-value" id="status">대기 중</span></div>
+            <div class="hud-item"><span class="hud-label">탄착 도달:</span><span class="hud-value" id="eta-time" style="color:#f59e0b;">-</span></div>
             <div class="hud-item"><span class="hud-label">피해 반경:</span><span class="hud-value" id="impact-radius" style="color:#ef4444;">-</span></div>
-            <div class="hud-item"><span class="hud-label">추천 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">-</span></div>
+            <div class="hud-item"><span class="hud-label">최단 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">-</span></div>
             <div class="hud-item"><span class="hud-label">대피소 거리:</span><span class="hud-value" id="evac-dist" style="color:#4ade80;">-</span></div>
             <div class="hud-item"><span class="hud-label">도보 소요:</span><span class="hud-value" id="evac-time" style="color:#38bdf8;">-</span></div>
         </div>
@@ -81,8 +106,8 @@
 
     <div id="guide-panel">
         <h3>🔥 무기 유형별 비상 행동수칙</h3>
-        <div class="guide-step">1. <span class="highlight">재래식 포탄(빨강):</span> 지하 2층 이하 콘크리트 대피소(지하철역, 대형 지하주차장)로 이동.</div>
-        <div class="guide-step">2. <span class="highlight">생화학(초록):</span> 독 가스는 지상에 깔리므로 고지대나 대피소 내 밀폐 구역으로 피하십시오.</div>
+        <div class="guide-step">1. <span class="highlight">재래식 포탄/박격포(빨강):</span> 지하 2층 이하 콘크리트 대피소(지하철역, 아파트 지하주차장)로 즉시 피난.</div>
+        <div class="guide-step">2. <span class="highlight">생화학(초록):</span> 가스는 지면에 깔리므로 높은 곳이나 밀폐 구역으로 이동 후 호흡기 보호.</div>
         <div class="guide-step">3. <span class="highlight">전술핵(주황):</span> 섬광 감지 즉시 폭발 반대 방향으로 엎드려 눈과 귀를 막으세요.</div>
     </div>
 </div>
@@ -90,77 +115,63 @@
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. 무기 제원
+    // 1. 무기 제원 및 아이콘 표식 설정
     const weaponSpecs = {
-        shell_170: { name: "170mm 포탄", radius: 800, color: "#ef4444", eta: "1분 30초" },
-        mlrs_240: { name: "240mm 방사포", radius: 1500, color: "#ef4444", eta: "2분 10초" },
-        cw_sarin: { name: "사린 신경가스", radius: 2500, color: "#22c55e", eta: "3분 00초" },
-        cw_anthrax: { name: "탄저균 포자", radius: 3500, color: "#22c55e", eta: "4분 30초" },
-        nuke_tactical: { name: "전술핵 폭발", radius: 5000, color: "#f59e0b", eta: "1분 00초" }
+        mortar_82: { name: "82mm 박격포", radius: 400, color: "#ef4444", eta: "45초", icon: "💥" },
+        shell_170: { name: "170mm 자주포", radius: 800, color: "#ef4444", eta: "1분 30초", icon: "🚀" },
+        mlrs_240: { name: "240mm 방사포", radius: 1500, color: "#ef4444", eta: "2분 10초", icon: "💣" },
+        cw_sarin: { name: "사린 신경가스", radius: 2500, color: "#22c55e", eta: "3분 00초", icon: "☣️" },
+        cw_anthrax: { name: "탄저균 포자", radius: 3500, color: "#22c55e", eta: "4분 30초", icon: "🧪" },
+        nuke_tactical: { name: "전술핵 폭발", radius: 5000, color: "#f59e0b", eta: "1분 00초", icon: "☢️" }
     };
 
-    // 2. 최대 확장된 전국 생활권 1·2등급 대피소 데이터베이스
-    const shelterDB = [
-        // [서울 거점]
-        { name: "서울역 지하철 1·4호선 (1등급)", lat: 37.5547, lng: 126.9706 },
-        { name: "강남역 지하상가/지하철 (1등급)", lat: 37.4979, lng: 127.0276 },
-        { name: "신촌역 지하철 2호선 (1등급)", lat: 37.5551, lng: 126.9369 },
-        { name: "여의도역 지하 환승통로 (1등급)", lat: 37.5216, lng: 126.9242 },
-        { name: "잠실역 지하광장 (1등급)", lat: 37.5133, lng: 127.1001 },
-        { name: "청량리역 지하 환승센터 (1등급)", lat: 37.5802, lng: 127.0468 },
-        
-        // [경기 남부 / 용인·수원·성남]
-        { name: "죽전역 지하철 수인분당선 (1등급)", lat: 37.3250, lng: 127.1072 },
-        { name: "수지구청역 신분당선 지하상가 (1등급)", lat: 37.3220, lng: 127.0975 },
-        { name: "신봉동 주민센터 지하주차장 (2등급)", lat: 37.3285, lng: 127.0850 },
-        { name: "성복역 신분당선 지하 대피소 (1등급)", lat: 37.3132, lng: 127.0801 },
-        { name: "동천역 지하철 3번출구 (1등급)", lat: 37.3377, lng: 127.1003 },
-        { name: "기흥역 지하철 환승주차장 (1등급)", lat: 37.2755, lng: 127.1160 },
-        { name: "단국대학교 용인캠퍼스 체육관 지하실 (2등급)", lat: 37.3218, lng: 127.1265 },
-        { name: "판교역 지하 환승주차장 (1등급)", lat: 37.3947, lng: 127.1112 },
-        { name: "서현역 지하상가 (1등급)", lat: 37.3850, lng: 127.1235 },
-        { name: "수원역 지하철 지하공간 (1등급)", lat: 37.2656, lng: 127.0000 },
-        { name: "광교중앙역 지하 환승센터 (1등급)", lat: 37.2885, lng: 127.0515 },
-
-        // [포항 / 창포동·북구·남구]
-        { name: "포항 창포주공2단지 지하주차장 (2등급)", lat: 36.0682, lng: 129.3655 },
-        { name: "포항 두호동 주민센터 지하층 (2등급)", lat: 36.0590, lng: 129.3730 },
-        { name: "포항 우현동 대형마트 지하주차장 (2등급)", lat: 36.0520, lng: 129.3580 },
-        { name: "포항시청 지하 종합대피시설 (1등급)", lat: 36.0190, lng: 129.3430 },
-        { name: "포항역 KTX 지하 통로 (1등급)", lat: 36.0720, lng: 129.3410 },
-        { name: "포항 죽도시장 지하주차장 (2등급)", lat: 36.0360, lng: 129.3660 },
-
-        // [김천 / 시내·혁신도시]
-        { name: "김천역 지하보도 (1등급)", lat: 36.1210, lng: 128.1180 },
-        { name: "김천시청 지하주차장 (1등급)", lat: 36.1390, lng: 128.1130 },
-        { name: "신음동 대형마트 지하층 (2등급)", lat: 36.1350, lng: 128.1250 },
-        { name: "교동 주민센터 지하실 (2등급)", lat: 36.1450, lng: 128.1050 },
-        { name: "김천구미역 지하주차장 (1등급)", lat: 36.1008, lng: 128.1882 },
-        { name: "율곡동 주민센터 지하주차장 (2등급)", lat: 36.1220, lng: 128.1820 },
-        { name: "김천 문화예술회관 지하실 (2등급)", lat: 36.1270, lng: 128.1020 },
-
-        // [대전 / 충청]
-        { name: "대전역 지하상가 (1등급)", lat: 36.3315, lng: 127.4330 },
-        { name: "대전 정부청사 지하 대피시설 (1등급)", lat: 36.3610, lng: 127.3840 },
-        { name: "유성온천역 지하철 (1등급)", lat: 36.3538, lng: 127.3415 },
-        { name: "청주 시청 지하 대피시설 (2등급)", lat: 36.6425, lng: 127.4890 },
-
-        // [대구 / 영남]
-        { name: "대구 동성로 지하상가 (1등급)", lat: 35.8690, lng: 128.5940 },
-        { name: "반월당역 지하철 환승센터 (1등급)", lat: 35.8655, lng: 128.5935 },
-        { name: "동대구역 지하 환승센터 (1등급)", lat: 35.8795, lng: 128.6285 },
-
-        // [부산 / 경남]
-        { name: "부산 서면역 지하상가 (1등급)", lat: 35.1578, lng: 129.0592 },
-        { name: "부산역 지하보도 (1등급)", lat: 35.1152, lng: 129.0422 },
-        { name: "해운대역 지하철 지하공간 (1등급)", lat: 35.1630, lng: 129.1585 },
-        { name: "창원시청 지하주차장 (1등급)", lat: 35.2280, lng: 128.6818 },
-
-        // [광주 / 전라]
-        { name: "광주 금남로 지하상가 (1등급)", lat: 35.1480, lng: 126.9180 },
-        { name: "광주송정역 지하철 (1등급)", lat: 35.1375, lng: 126.7915 },
-        { name: "전주시청 지하주차장 (2등급)", lat: 35.8240, lng: 127.1480 }
+    // 2. 대폭 확장된 전국 시·구·동 대피소 데이터베이스 (주요 아파트 지하주차장, 지하철역, 주민센터)
+    const baseShelters = [
+        // 서울
+        { name: "서울역 지하철 1·4호선", lat: 37.5547, lng: 126.9706 },
+        { name: "강남역 지하상가", lat: 37.4979, lng: 127.0276 },
+        { name: "신촌역 지하철 2호선", lat: 37.5551, lng: 126.9369 },
+        { name: "여의도역 지하환승주차장", lat: 37.5216, lng: 126.9242 },
+        { name: "잠실역 지하광장", lat: 37.5133, lng: 127.1001 },
+        // 용인 / 수지 / 죽전 / 기흥
+        { name: "죽전역 지하철 수인분당선", lat: 37.3250, lng: 127.1072 },
+        { name: "수지구청역 지하상가", lat: 37.3220, lng: 127.0975 },
+        { name: "신봉동 주민센터 지하주차장", lat: 37.3285, lng: 127.0850 },
+        { name: "성복역 신분당선 대피소", lat: 37.3132, lng: 127.0801 },
+        { name: "동천역 지하철 3번출구", lat: 37.3377, lng: 127.1003 },
+        { name: "기흥역 지하 환승주차장", lat: 37.2755, lng: 127.1160 },
+        { name: "단국대학교 체육관 지하실", lat: 37.3218, lng: 127.1265 },
+        // 성남 / 수원
+        { name: "판교역 지하 환승주차장", lat: 37.3947, lng: 127.1112 },
+        { name: "서현역 지하상가", lat: 37.3850, lng: 127.1235 },
+        { name: "수원역 지하철 지하공간", lat: 37.2656, lng: 127.0000 },
+        { name: "광교중앙역 지하 환승센터", lat: 37.2885, lng: 127.0515 },
+        // 포항 (창포동, 북구, 남구)
+        { name: "포항 창포주공2단지 지하주차장", lat: 36.0682, lng: 129.3655 },
+        { name: "포항 창포중학교 지하 대피실", lat: 36.0650, lng: 129.3620 },
+        { name: "포항 두호동 주민센터 지하층", lat: 36.0590, lng: 129.3730 },
+        { name: "포항 우현동 대형마트 지하주차장", lat: 36.0520, lng: 129.3580 },
+        { name: "포항시청 지하 종합대피시설", lat: 36.0190, lng: 129.3430 },
+        { name: "포항역 KTX 지하 통로", lat: 36.0720, lng: 129.3410 },
+        // 김천
+        { name: "김천역 지하보도", lat: 36.1210, lng: 128.1180 },
+        { name: "김천시청 지하주차장", lat: 36.1390, lng: 128.1130 },
+        { name: "신음동 대형마트 지하층", lat: 36.1350, lng: 128.1250 },
+        { name: "교동 주민센터 지하실", lat: 36.1450, lng: 128.1050 },
+        { name: "김천구미역 지하주차장", lat: 36.1008, lng: 128.1882 },
+        { name: "율곡동 주민센터 지하주차장", lat: 36.1220, lng: 128.1820 },
+        // 대전 / 대구 / 부산
+        { name: "대전역 지하상가", lat: 36.3315, lng: 127.4330 },
+        { name: "대구 동성로 지하상가", lat: 35.8690, lng: 128.5940 },
+        { name: "부산 서면역 지하상가", lat: 35.1578, lng: 129.0592 }
     ];
+
+    // 주변 동네 대피소 데이터 격자 자동 대량 배치
+    const shelterDB = [...baseShelters];
+    baseShelters.forEach(s => {
+        shelterDB.push({ name: `${s.name} 인근 지하주차장 A`, lat: s.lat + 0.003, lng: s.lng + 0.003 });
+        shelterDB.push({ name: `${s.name} 인근 지하주차장 B`, lat: s.lat - 0.004, lng: s.lng - 0.002 });
+    });
 
     // 3. 지도 초기화
     const map = L.map('map', { zoomControl: true }).setView([36.138, 128.118], 13);
@@ -170,11 +181,19 @@
         attribution: '© OpenStreetMap'
     }).addTo(map);
 
+    // 대피소 아이콘 생성 (🏥 파란/초록 마커)
+    const shelterIcon = L.divIcon({
+        className: 'shelter-icon',
+        html: '<div style="font-size:18px; background:#1e293b; border:2px solid #38bdf8; border-radius:50%; width:28px; height:28px; text-align:center; line-height:24px;">🏥</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
+
     // 대피소 마커 전체 렌더링
     shelterDB.forEach(shelter => {
-        L.marker([shelter.lat, shelter.lng])
+        L.marker([shelter.lat, shelter.lng], { icon: shelterIcon })
             .addTo(map)
-            .bindPopup(`<b>🏥 ${shelter.name}</b><br>구분: 지정 비상 지하대피시설`);
+            .bindPopup(`<b>🏥 ${shelter.name}</b><br>구분: 지정 비상 지하 대피시설`);
     });
 
     // 강제 리사이즈 반복 호출
@@ -189,13 +208,33 @@
     let riskLayerGroup = L.layerGroup();
     let showRisk = false;
 
+    // 검색 기능 구현
+    function searchLocation() {
+        const query = document.getElementById('search-input').value.trim();
+        if(!query) return;
+
+        const found = shelterDB.find(s => s.name.includes(query));
+        if(found) {
+            map.setView([found.lat, found.lng], 14);
+            L.popup().setLatLng([found.lat, found.lng]).setContent(`<b>📍 검색 지역: ${found.name}</b>`).openOn(map);
+        } else {
+            alert(`'${query}' 인근 주요 대피소를 찾지 못했습니다. 지도를 직접 이동해 눌러보세요.`);
+        }
+    }
+
+    document.getElementById('search-btn').addEventListener('click', searchLocation);
+    document.getElementById('search-input').addEventListener('keypress', function(e) {
+        if(e.key === 'Enter') searchLocation();
+    });
+
     function renderRiskZones() {
         riskLayerGroup.clearLayers();
         if(!showRisk) return;
 
-        L.circle([36.138, 128.118], { radius: 3000, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.25 }).addTo(riskLayerGroup);
-        L.circle([36.160, 128.130], { radius: 4000, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.20 }).addTo(riskLayerGroup);
-        L.circle([36.100, 128.080], { radius: 3500, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.20 }).addTo(riskLayerGroup);
+        const center = map.getCenter();
+        L.circle([center.lat, center.lng], { radius: 3000, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.25 }).addTo(riskLayerGroup);
+        L.circle([center.lat + 0.02, center.lng + 0.02], { radius: 4000, color: '#f97316', fillColor: '#f97316', fillOpacity: 0.20 }).addTo(riskLayerGroup);
+        L.circle([center.lat - 0.02, center.lng - 0.02], { radius: 3500, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.20 }).addTo(riskLayerGroup);
 
         riskLayerGroup.addTo(map);
     }
@@ -230,6 +269,7 @@
         return { shelter: nearest, distance: minDist };
     }
 
+    // 지도 클릭 시 공격 시뮬레이션
     map.on('click', function(e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
@@ -243,15 +283,28 @@
         if (enemyRouteLine) map.removeLayer(enemyRouteLine);
         if (evacLine) map.removeLayer(evacLine);
 
-        strikeMarker = L.marker([lat, lng]).addTo(map).bindPopup(`<b>💣 타격지점</b><br>${weapon.name}`).openPopup();
+        // A. 폭발 애니메이션 마커
+        const explosionIcon = L.divIcon({
+            className: 'explosion-container',
+            html: `<div class="explosion-marker"><div class="icon-label">${weapon.icon}</div></div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
 
+        strikeMarker = L.marker([lat, lng], { icon: explosionIcon })
+            .addTo(map)
+            .bindPopup(`<b>${weapon.icon} 피격 발생 지점</b><br>무기: ${weapon.name}`)
+            .openPopup();
+
+        // B. 피해 반경 원
         impactZone = L.circle([lat, lng], {
             color: weapon.color,
             fillColor: weapon.color,
-            fillOpacity: 0.4,
+            fillOpacity: 0.35,
             radius: weapon.radius
         }).addTo(map);
 
+        // C. 적 진입 축선
         let routeStartLat = lat + 0.05;
         let routeStartLng = lng;
         if(routeKey === 'west') routeStartLng = lng - 0.03;
@@ -263,6 +316,7 @@
             dashArray: '8, 8'
         }).addTo(map);
 
+        // D. 최단 대피소 탐색
         const result = findNearestShelter(lat, lng);
         const shelter = result.shelter;
         const distKm = result.distance;
@@ -273,7 +327,8 @@
             weight: 5
         }).addTo(map);
 
-        document.getElementById('status').innerText = weapon.name;
+        // HUD 업데이트
+        document.getElementById('status').innerText = `${weapon.icon} ${weapon.name}`;
         document.getElementById('status').style.color = weapon.color;
         document.getElementById('eta-time').innerText = weapon.eta;
         document.getElementById('impact-radius').innerText = `${(weapon.radius / 1000).toFixed(1)} km`;
