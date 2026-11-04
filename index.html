@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>전국 비상대비 시뮬레이터 (전국 대피소 전체 시각화)</title>
+    <title>전국 비상대비 시뮬레이터 (정제된 공공데이터 연동)</title>
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -57,7 +57,7 @@
 
 <div id="app-wrapper">
     <header>
-        <h1>🚨 전국 비상대비 시뮬레이터 (전국 18,000개 대피소 전역 시각화)</h1>
+        <h1>🚨 전국 비상대비 시뮬레이터 (정제 공공데이터 연동)</h1>
     </header>
 
     <div id="main-container">
@@ -195,8 +195,8 @@
         L.polyline(lineCoords, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map).bindPopup("<b>🔵 우리군(ROK/US) FEBA 주요 방어선</b>");
     });
 
-    // CSV 파일 실시간 전체 로드 (제한 해제)
-    Papa.parse("민방위대피시설.csv", {
+    // 정제된 CSV 파일명("민방위대피시설 (2).csv") 자동 파싱 연동
+    Papa.parse("민방위대피시설 (2).csv", {
         download: true,
         header: true,
         encoding: "EUC-KR",
@@ -217,7 +217,6 @@
         }
     });
 
-    // 화면 영역 안의 대피소 표시 제한(300개 락) 전면 제거
     function renderVisibleShelters() {
         shelterMarkersLayer.clearLayers();
         if (shelterDB.length === 0) return;
@@ -362,7 +361,7 @@
 
         const nkFlagIcon = L.divIcon({
             className: 'nk-flag-container',
-            html: `<div class="nk-flag-marker">⭐</div>`,
+            html: `<div class="nk-flag-marker">🇰🇵</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
         });
