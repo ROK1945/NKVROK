@@ -18,11 +18,11 @@
         #main-container { position: relative; flex: 1; width: 100%; min-height: 0; background: #020617; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; }
         
-        /* 확장된 컨트롤 및 검색 패널 */
+        /* 컨트롤 및 검색 패널 */
         #control-panel { position: absolute; top: 8px; left: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px 10px; border-radius: 8px; width: 235px; font-size: 0.72rem; max-height: calc(100% - 16px); overflow-y: auto; }
         #control-panel label { display: block; color: #94a3b8; margin-top: 5px; margin-bottom: 2px; font-weight: 600; }
         
-        /* 검색창 크기 및 글자색 보정 */
+        /* 검색창 UI 보정 */
         .search-box { display: flex; gap: 4px; margin-bottom: 4px; }
         .search-box input { flex: 1; padding: 5px 8px; background: #1e293b; border: 1px solid #475569; color: #ffffff !important; border-radius: 4px; font-size: 0.72rem; font-weight: 500; }
         .search-box input::placeholder { color: #94a3b8; }
@@ -47,7 +47,7 @@
         .guide-step { margin-bottom: 2px; color: #cbd5e1; line-height: 1.2; }
         .highlight { color: #ef4444; font-weight: bold; }
 
-        /* 북한 국기 및 애니메이션 */
+        /* 북한 국기 마커 애니메이션 */
         .nk-flag-marker {
             width: 30px; height: 30px;
             background: rgba(220, 38, 38, 0.9);
