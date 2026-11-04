@@ -3,326 +3,270 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대한민국 민방위 및 전술 남침 시뮬레이터 (NKVKOK)</title>
+    <title>대한민국 전술 워게임 및 민방위 시뮬레이터 (NKVKOK)</title>
     
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #0b0f19; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* 좌측 전술 통제 패널 */
         #sidebar { width: 440px; background: #131824; border-right: 1px solid #2a3447; display: flex; flex-direction: column; padding: 18px; z-index: 1000; overflow-y: auto; }
         h1 { font-size: 17px; margin-bottom: 12px; color: #ff4757; border-bottom: 2px solid #ff4757; padding-bottom: 6px; letter-spacing: -0.5px; }
         
-        .control-group { margin-bottom: 14px; }
+        .control-group { margin-bottom: 12px; }
         label { display: block; font-size: 12px; margin-bottom: 4px; color: #8ab4f8; font-weight: bold; }
-        select, input, button { width: 100%; padding: 9px; background: #1a2333; border: 1px solid #324158; color: #fff; border-radius: 4px; font-size: 13px; }
+        select, input, button { width: 100%; padding: 8px; background: #1a2333; border: 1px solid #324158; color: #fff; border-radius: 4px; font-size: 12px; }
         button { background: #c62828; border: none; font-weight: bold; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
         button:hover { background: #e53935; }
+        
+        #btn-undo { background: #37474f; border: 1px solid #546e7a; margin-bottom: 8px; }
+        #btn-undo:hover { background: #455a64; }
+        #btn-search-global { background: #2980b9; margin-top: 4px; }
+        #btn-search-global:hover { background: #3498db; }
 
-        /* 페이즈 시나리오 분석 박스 */
         #phase-box { background: #1b263b; border-left: 4px solid #ff4757; padding: 10px; font-size: 12px; line-height: 1.4; margin-top: 4px; border-radius: 0 4px 4px 0; color: #cfd8dc; }
-
-        /* 대피소 목록 영역 */
+        
         #shelter-list-container { max-height: 180px; overflow-y: auto; margin-top: 4px; border: 1px solid #2a3447; background: #0f141f; border-radius: 4px; padding: 4px; }
         .shelter-item { padding: 8px; border-bottom: 1px solid #1e293b; font-size: 11px; cursor: pointer; }
         .shelter-item:hover { background: #1f2937; }
         .shelter-name { font-weight: bold; color: #ff8a80; font-size: 12px; margin-bottom: 2px; }
         .shelter-addr { color: #9ca3af; font-size: 10px; }
 
-        /* 우측 지도 영역 */
         #map { flex-grow: 1; height: 100%; z-index: 1; }
-        
         #status-msg { position: absolute; top: 15px; right: 15px; background: rgba(15, 23, 42, 0.9); padding: 10px 18px; border-radius: 4px; font-size: 12px; border-left: 4px solid #00ffcc; z-index: 2000; color: #00ffcc; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+
+        /* 워게임 전술 아이콘 CSS (MIL-STD-2525 스타일) */
+        .mil-icon-hostile { width: 16px; height: 16px; background: #ff4757; transform: rotate(45deg); border: 2px solid #000; box-shadow: 0 0 5px #ff4757; display: flex; align-items: center; justify-content: center; }
+        .mil-icon-friendly { width: 20px; height: 14px; background: #2e86de; border: 2px solid #000; box-shadow: 0 0 5px #2e86de; display: flex; align-items: center; justify-content: center; }
+        .icon-label { font-size: 10px; color: #fff; font-weight: bold; transform: rotate(-45deg); }
+        .friendly-label { font-size: 10px; color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h1>🎖️ 현대전 국방·전술 남침 시뮬레이션 (NKVKOK)</h1>
+        <h1>🎖️ 전술 워게임 & 민방위 시뮬레이터 (NKVKOK)</h1>
         
-        <!-- 위협 단계 설정 및 페이즈 시나리오 -->
+        <button id="btn-undo">🔄 지도 전술 객체 및 시뮬레이션 초기화</button>
+
         <div class="control-group">
-            <label for="threat-level">DEFCON 페이즈 및 북한군 남침 시나리오</label>
+            <label for="threat-level">DEFCON 단계 및 전구(Theater) 상황</label>
             <select id="threat-level">
-                <option value="4">DEFCON 4 (평시 경계 체제)</option>
-                <option value="3">DEFCON 3 (국지전 징후 및 전방 포병 전개)</option>
-                <option value="2">DEFCON 2 (전면전 임박, 기갑부대 돌파 준비)</option>
-                <option value="1" selected>DEFCON 1 (전시 상황, 전면 남침 및 수도권 포격 개시)</option>
+                <option value="4">DEFCON 4 (평시 경계 / 부대 통상 배치)</option>
+                <option value="3">DEFCON 3 (국지 도발 / 북한군 포병 전진 배치)</option>
+                <option value="2">DEFCON 2 (전면전 임박 / 기갑부대 공격 대기)</option>
+                <option value="1" selected>DEFCON 1 (워게임 개시 / 전면 남침 및 포격)</option>
             </select>
-            <div id="phase-box">시나리오 분석 데이터 로딩 중...</div>
+            <div id="phase-box">데이터 로딩 중...</div>
         </div>
 
-        <!-- 북한 위협 무기 선택 -->
         <div class="control-group">
-            <label for="weapon-type">북한 위협 무기 및 남침 진격 축선 선택</label>
+            <label for="weapon-type">워게임 시나리오 (침투/공격 모델 선택)</label>
             <select id="weapon-type">
-                <option value="artillery" selected>장사정포 및 300/600mm 방사포 (수도권 전면 포격)</option>
-                <option value="nuke">전술핵폭탄 (150kt 공중폭발·열섬·방사능 반경)</option>
-                <option value="armor">북한군 기갑부대 돌파 축선 (철원·문산 축선 남침)</option>
-                <option value="emp">고고도 EMP탄 (전자기기 무력화)</option>
+                <option value="artillery" selected>[화력전] 북 장사정포 갱도진지 개방 및 수도권 타격</option>
+                <option value="armor">[기동전] 제1·2기갑군단 전면 돌파 (철원/문산 축선)</option>
+                <option value="nuke">[비대칭] KN-23 전술핵 공중폭발 (150kt)</option>
             </select>
-            <button id="btn-strike">🎯 선택한 전술 축선 및 타격 범위 시뮬레이션 전개</button>
+            <button id="btn-strike">🎯 워게임 시나리오 지도에 전개 (Click Map to Strike)</button>
         </div>
 
-        <!-- 지도 모드 선택 -->
         <div class="control-group">
-            <label for="map-mode">전술 지도 모드 선택</label>
+            <label for="map-mode">전술 지도 모드</label>
             <select id="map-mode">
-                <option value="satellite" selected>브이월드 위성 항공 샷</option>
-                <option value="standard">브이월드 일반 도로명 지도</option>
-                <option value="dark">다크 야간 전술 맵</option>
+                <option value="satellite" selected>브이월드 위성 정찰 맵</option>
+                <option value="dark">다크 야간 작전 맵</option>
+                <option value="standard">일반 도로망 맵 (대피로 분석용)</option>
             </select>
         </div>
 
-        <!-- 대피소 검색 -->
         <div class="control-group">
-            <label for="search-shelter">전국 대피소 검색 및 위치 이동</label>
-            <input type="text" id="search-shelter" placeholder="예: 종로구, 성균관대, 부산, 대구">
+            <label>통합 위치 및 대피소 검색</label>
+            <input type="text" id="search-input" placeholder="주소, 지역, 또는 대피소명 입력 (예: 서울역, 강남구)">
+            <button id="btn-search-global">🔍 전 세계/전국 지명 통합 검색 및 이동</button>
         </div>
 
-        <label>근린 대피소 목록 (<span id="shelter-count">0</span>개) - 클릭 시 즉시 지도 이동</label>
+        <label>근린 대피소 검색 결과 (<span id="shelter-count">0</span>개) - 클릭 시 이동</label>
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #666; padding: 15px;">전국 대피소 18,000+ 데이터 파싱 중...</div>
+            <div style="text-align: center; color: #666; padding: 15px;">전국 18,000+ 대피소 파싱 중...</div>
         </div>
     </div>
 
     <div id="map"></div>
-    <div id="status-msg">전술 시스템 가동 중. 대피소 클릭 또는 목록 선택 시 즉시 이동.</div>
+    <div id="status-msg">지형 정보 연동 완료. 검색 및 시뮬레이션 대기 중.</div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
         const VWORLD_API_KEY = "AB8056F3-8810-4503-9544-FA9F94BB07C1";
-        let map;
-        let shelterDataList = [];
-        let markersGroup = L.layerGroup();
-        let tacticalLayer = L.layerGroup(); // 진격선, 방어선, 타격 범위 레이어
-        let tileLayers = {};
+        let map, shelterDataList = [], markersGroup = L.layerGroup(), tacticalLayer = L.layerGroup(), tileLayers = {};
 
-        // DEFCON 페이즈별 북한군 진격 양상 및 국군 방어선 정의
-        const phaseScenarios = {
-            '4': "<b>[Phase 1] 평시 경계 (DEFCON 4):</b> 북한군 4개 전선군단 휴전선 일대 대치. 국군 지상작전사령부 전방 경계태세 유지.",
-            '3': "<b>[Phase 2] 국지전 징후 (DEFCON 3):</b> 전방 장사정포 포신 개방. 국군은 임진강 및 철원 일대 초기 저지 진지 점령 태세.",
-            '2': "<b>[Phase 3] 전면전 임박 (DEFCON 2):</b> 북한군 제1·2기갑군단 전방 전개. 국군은 문산-철원-속초를 잇는 주저항선(1방어선) 전개.",
-            '1': "<b>[Phase 4] 전면 남침 및 수도권 돌파 (DEFCON 1):</b> 북한군 기갑부대가 문산·철원 축선으로 돌파 시도. 국군은 한강 방어선 및 수도권 외곽 요충지에서 결사 방어 개시."
+        const defconScenarios = {
+            '4': "<b>[DEFCON 4]</b> 전방 초소(GP/GOP) 경계 유지. 북한군 4개 전선군단 일상 훈련 중.",
+            '3': "<b>[DEFCON 3]</b> 장사정포 갱도 진지 개방. 아군 방어 준비태세(DEFCON 3) 발령, 민간인 대피 준비.",
+            '2': "<b>[DEFCON 2]</b> 북 기갑사단 축선별 공격대기지역(AA) 진입. 국군 방어선(FEBA) 전투병력 투입.",
+            '1': "<b>[DEFCON 1]</b> 포병 준비사격 개시 및 전차부대 남하. 대량 피해 발생, 민간인 남방 한계선 이남 긴급 대피."
         };
 
-        function initMap() {
-            map = L.map('map', { maxZoom: 19, minZoom: 6 }).setView([37.5665, 126.9780], 11);
+        // 워게임 아이콘 생성기 (적군/아군)
+        const createMilIcon = (type, label) => L.divIcon({
+            className: 'mil-icon-wrapper',
+            html: type === 'hostile' 
+                ? `<div class="mil-icon-hostile" title="${label}"><span class="icon-label">적</span></div>`
+                : `<div class="mil-icon-friendly" title="${label}"><span class="friendly-label">아</span></div>`,
+            iconSize: [20, 20], iconAnchor: [10, 10]
+        });
 
-            tileLayers.satellite = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`, { maxZoom: 19 });
-            tileLayers.standard = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Base/{z}/{y}/{x}.png`, { maxZoom: 19 });
-            tileLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 });
+        function initMap() {
+            map = L.map('map', { maxZoom: 19, minZoom: 6 }).setView([37.5665, 126.9780], 9);
+
+            tileLayers.satellite = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`);
+            tileLayers.standard = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Base/{z}/{y}/{x}.png`);
+            tileLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
 
             tileLayers.satellite.addTo(map);
             markersGroup.addTo(map);
             tacticalLayer.addTo(map);
 
-            // 초기 실행 시 기본 전술 축선(수도권 포격 및 방어선) 자동 렌더링
-            renderTacticalLines('artillery', 37.5665, 126.9780);
-
+            updateDefconBox();
+            
             map.on('click', (e) => {
-                const weapon = document.getElementById('weapon-type').value;
-                renderTacticalLines(weapon, e.latlng.lat, e.latlng.lng);
+                runWargameSimulation(document.getElementById('weapon-type').value, e.latlng.lat, e.latlng.lng);
             });
-
-            updatePhaseDescription();
         }
 
-        document.getElementById('threat-level').addEventListener('change', updatePhaseDescription);
-        function updatePhaseDescription() {
-            const val = document.getElementById('threat-level').value;
-            document.getElementById('phase-box').innerHTML = phaseScenarios[val];
+        document.getElementById('btn-undo').addEventListener('click', () => {
+            tacticalLayer.clearLayers();
+            document.getElementById('status-msg').textContent = "🔄 워게임 전술 그래픽이 초기화되었습니다.";
+        });
+
+        document.getElementById('threat-level').addEventListener('change', updateDefconBox);
+        function updateDefconBox() {
+            document.getElementById('phase-box').innerHTML = defconScenarios[document.getElementById('threat-level').value];
         }
 
         document.getElementById('map-mode').addEventListener('change', (e) => {
-            const mode = e.target.value;
             Object.values(tileLayers).forEach(layer => map.removeLayer(layer));
-            if (tileLayers[mode]) tileLayers[mode].addTo(map);
+            if (tileLayers[e.target.value]) tileLayers[e.target.value].addTo(map);
         });
 
         document.getElementById('btn-strike').addEventListener('click', () => {
             const center = map.getCenter();
-            const weapon = document.getElementById('weapon-type').value;
-            renderTacticalLines(weapon, center.lat, center.lng);
+            runWargameSimulation(document.getElementById('weapon-type').value, center.lat, center.lng);
         });
 
-        // 북한군 남침 진격선, 국군 방어선, 무기 타격 범위를 지도에 시각화하는 핵심 함수
-        function renderTacticalLines(weapon, lat, lng) {
+        // 통합 지역 검색 (OpenStreetMap API 연동 - 어느 주소/지명이든 검색 가능)
+        document.getElementById('btn-search-global').addEventListener('click', async () => {
+            const keyword = document.getElementById('search-input').value.trim();
+            if(!keyword) return;
+
+            document.getElementById('status-msg').textContent = `🔍 [${keyword}] 공간 데이터 검색 중...`;
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&accept-language=ko`);
+                const data = await res.json();
+                if(data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    map.flyTo([lat, lon], 14, { duration: 1.5 });
+                    document.getElementById('status-msg').textContent = `📍 지명 검색 완료: ${data[0].display_name}`;
+                } else {
+                    document.getElementById('status-msg').textContent = `⚠️ 지명을 찾을 수 없습니다. 대피소 목록을 확인하세요.`;
+                }
+            } catch(e) {
+                document.getElementById('status-msg').textContent = `⚠️ 지명 검색 서버 오류`;
+            }
+        });
+
+        // 실시간 워게임 시뮬레이션 및 전술 객체 렌더링
+        function runWargameSimulation(scenario, lat, lng) {
             tacticalLayer.clearLayers();
 
-            // 1. 국군 주방어선 (한강 및 문산-철원 선) 시각화 (청색 라인)
-            const rokDefenseLine = L.polyline([
-                [37.75, 126.60], // 강화/문산 방어선
-                [37.85, 127.05], // 연천/철원 방어선
-                [38.10, 127.50], // 화천/양구 방어선
-                [38.25, 128.40]  // 고성 방어선 (휴전선 인근 국군 1야전군 방어선)
-            ], { color: '#00d2d3', weight: 4, dashArray: '5, 5' });
-            rokDefenseLine.bindPopup("<b>🛡️ 대한민국 국군 주저항선 (1방어선)</b><br>지상작전사령부 예하 부대 결사 방어선");
-            tacticalLayer.addLayer(rokDefenseLine);
+            // [공통] 국군 방어선(FEBA) 및 지휘소 아이콘
+            L.polyline([[37.75, 126.60], [37.85, 127.05], [38.10, 127.50], [38.25, 128.40]], { color: '#2e86de', weight: 4, dashArray: '5,5' }).bindPopup("국군 주방어선 (FEBA Alpha)").addTo(tacticalLayer);
+            L.polyline([[37.58, 126.80], [37.52, 126.95], [37.55, 127.10]], { color: '#0984e3', weight: 4 }).bindPopup("수도권 한강 방어선").addTo(tacticalLayer);
+            
+            // 국군 주요 거점 마커
+            L.marker([37.85, 127.05], {icon: createMilIcon('friendly', '국군 제1군단')}).addTo(tacticalLayer);
+            L.marker([37.52, 126.95], {icon: createMilIcon('friendly', '수방사')}).addTo(tacticalLayer);
 
-            // 2. 국군 한강 최종 방어선 (청색 실선)
-            const rokHanRiverLine = L.polyline([
-                [37.58, 126.80], // 김포/행주대교
-                [37.52, 126.95], // 서울 용산/한강대교
-                [37.55, 127.10]  // 하남/잠실철교
-            ], { color: '#0097e6', weight: 5 });
-            rokHanRiverLine.bindPopup("<b>🛡️ 국군 한강 최종 방어선</b><br>수도권 사수를 위한 최후 저지선");
-            tacticalLayer.addLayer(rokHanRiverLine);
+            // [공통] 민간인 피난 루트 (녹색 점선 화살표)
+            L.polyline([[lat, lng], [37.26, 127.02], [36.35, 127.38]], { color: '#00e676', weight: 3, dashArray: '10, 10' }).bindPopup("🟢 민간인 권장 대피 루트 (수도권 이남 안전지대 이동)").addTo(tacticalLayer);
 
             let radius = 5000;
             let color = '#ff4757';
-            let title = "전술 시뮬레이션";
+            let title = "타격 반경";
 
-            if (weapon === 'artillery') {
-                radius = 15000;
-                color = '#ff9f43';
-                title = "북한군 장사정포/방사포 포격 탄착군 (수도권 위협 반경 15km)";
+            if (scenario === 'artillery') {
+                radius = 15000; color = '#ff9f43'; title = "장사정포 타격 범위 (15km)";
+                // 북한군 포병진지 마커 및 사격선
+                L.marker([37.98, 126.65], {icon: createMilIcon('hostile', '적 장사정포 갱도진지')}).addTo(tacticalLayer);
+                L.polyline([[37.98, 126.65], [lat, lng]], { color: '#ff9f43', weight: 2 }).addTo(tacticalLayer);
                 
-                // 장사정포 포격 원점(개성/평강 일대)에서 내려오는 화살표
-                const nkorArtilleryStrike = L.polyline([
-                    [37.98, 126.65], [lat, lng]
-                ], { color: '#ff9f43', weight: 3 });
-                tacticalLayer.addLayer(nkorArtilleryStrike);
+            } else if (scenario === 'armor') {
+                radius = 20000; color = '#e84118'; title = "기갑군단 침투 점령 구역";
+                // 적 기갑부대 진격선 및 마커
+                L.marker([38.30, 126.70], {icon: createMilIcon('hostile', '제1기갑군단 집결지')}).addTo(tacticalLayer);
+                L.polyline([[38.30, 126.70], [37.95, 126.78], [lat, lng]], { color: '#ff3838', weight: 5 }).addTo(tacticalLayer);
+                L.polyline([[38.25, 127.30], [38.05, 127.20], [37.80, 127.10]], { color: '#ff3838', weight: 5 }).addTo(tacticalLayer);
 
-            } else if (weapon === 'nuke') {
-                radius = 30000;
-                color = '#ff3838';
-                title = "전술핵폭탄 150kt 폭발 피해 반경 (30km)";
-
-            } else if (weapon === 'armor') {
-                radius = 20000;
-                color = '#e84118';
-                title = "북한군 제1·2기갑군단 남침 돌파 축선 (철원·문산 축선)";
-
-                // 북한군 기갑부대 남침 진격선 (붉은색 화살표 동선)
-                const nkorArmorAdvance1 = L.polyline([
-                    [38.30, 126.70], [37.95, 126.78], [lat, lng] // 서부 문산 축선 돌파
-                ], { color: '#ff3838', weight: 5 });
-                
-                const nkorArmorAdvance2 = L.polyline([
-                    [38.25, 127.30], [38.05, 127.20], [37.80, 127.10] // 중부 철원 축선 돌파
-                ], { color: '#ff3838', weight: 5 });
-
-                nkorArmorAdvance1.bindPopup("<b>🚨 북한군 제1기갑사단 남침 주공 (문산 축선)</b>");
-                nkorArmorAdvance2.bindPopup("<b>🚨 북한군 제2기갑사단 남침 조공 (철원 축선)</b>");
-                
-                tacticalLayer.addLayer(nkorArmorAdvance1);
-                tacticalLayer.addLayer(nkorArmorAdvance2);
-
-            } else if (weapon === 'emp') {
-                radius = 60000;
-                color = '#00d2d3';
-                title = "고고도 EMP탄 타격 전자기파 영향권 (반경 60km)";
+            } else if (scenario === 'nuke') {
+                radius = 30000; color = '#ff3838'; title = "전술핵 폭발 열섬 및 방사능 오염 구역 (30km)";
+                L.marker([39.03, 125.75], {icon: createMilIcon('hostile', '미사일 발사 원점 (평양 일대)')}).addTo(tacticalLayer);
+                L.polyline([[39.03, 125.75], [lat, lng]], { color: '#ff3838', weight: 3, dashArray: '5, 15' }).addTo(tacticalLayer);
             }
 
-            // 타격/피해 범위 원형 표시
-            const circle = L.circle([lat, lng], {
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.3,
-                radius: radius
-            });
+            // 타격 반경 원형 표시
+            L.circle([lat, lng], { color: color, fillColor: color, fillOpacity: 0.3, radius: radius })
+             .bindPopup(`<b>💥 ${title}</b><br>즉시 녹색 대피로를 따라 남하하거나 지하 방공호로 대피!`).addTo(tacticalLayer);
 
-            circle.bindPopup(`<b>💥 ${title}</b><br>중심 좌표: ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>즉시 인근 지하 대피소로 분산 대피하십시오!`).openPopup();
-            tacticalLayer.addLayer(circle);
-
-            document.getElementById('status-msg').textContent = `🎯 전술 전개 완료: 북한군 진격선 및 국군 방어선 표시됨`;
+            document.getElementById('status-msg').textContent = `🎯 워게임 시나리오 [${scenario}] 전개 완료. (적군/아군 아이콘 및 대피로 표출)`;
         }
 
-        // CSV 안전 파싱 및 대피소 로드 함수
+        // CSV 파싱
         function parseCSVLine(text) {
-            let result = [];
-            let current = '';
-            let inQuotes = false;
+            let result = [], current = '', inQuotes = false;
             for (let i = 0; i < text.length; i++) {
                 let char = text[i];
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    result.push(current.trim());
-                    current = '';
-                } else {
-                    current += char;
-                }
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+                else current += char;
             }
-            result.push(current.trim());
-            return result;
+            result.push(current.trim()); return result;
         }
 
         async function loadShelterCSV() {
             try {
                 const response = await fetch('Shelter.csv');
-                if (!response.ok) throw new Error(`HTTP 에러: ${response.status}`);
-                
+                if (!response.ok) throw new Error("HTTP error");
                 const buffer = await response.arrayBuffer();
-                let decoder = new TextDecoder('utf-8');
-                let csvText = decoder.decode(buffer);
+                let text = new TextDecoder('utf-8').decode(buffer);
+                if(text.includes('')) text = new TextDecoder('euc-kr').decode(buffer);
                 
-                if (csvText.includes('')) {
-                    decoder = new TextDecoder('euc-kr');
-                    csvText = decoder.decode(buffer);
-                }
-
-                parseCSV(csvText);
-            } catch (error) {
-                console.error("파일 로드 실패:", error);
-                document.getElementById('shelter-list-container').innerHTML = 
-                    `<div style="color: #ff5252; padding: 10px; text-align: center;">파일을 불러오지 못했습니다.<br>Shelter.csv 확인 요망.</div>`;
-                document.getElementById('status-msg').textContent = "⚠️ 대피소 데이터 로드 실패";
-            }
-        }
-
-        function parseCSV(csvText) {
-            const lines = csvText.split(/\r\n|\n/);
-            shelterDataList = [];
-
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const columns = parseCSVLine(line);
-
-                if (columns.length >= 18) {
-                    const address = columns[2].replace(/^["']|["']$/g, "");
-                    const roadAddress = columns[3].replace(/^["']|["']$/g, "");
-                    const facilityName = columns[5].replace(/^["']|["']$/g, "");
-                    const facilityType = columns[6].replace(/^["']|["']$/g, "");
-                    const locationDesc = columns[7].replace(/^["']|["']$/g, "");
-                    const lat = parseFloat(columns[16]);
-                    const lng = parseFloat(columns[17]);
-
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        shelterDataList.push({ address, roadAddress, facilityName, facilityType, locationDesc, lat, lng });
+                const lines = text.split(/\r\n|\n/);
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = parseCSVLine(lines[i].trim());
+                    if (cols.length >= 18) {
+                        const lat = parseFloat(cols[16]); const lng = parseFloat(cols[17]);
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            shelterDataList.push({
+                                address: cols[2].replace(/["']/g, ""), roadAddress: cols[3].replace(/["']/g, ""),
+                                facilityName: cols[5].replace(/["']/g, ""), type: cols[6].replace(/["']/g, ""), lat, lng
+                            });
+                        }
                     }
                 }
+                document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 대피소 로드 완료`;
+                renderShelterList(shelterDataList);
+                renderMapMarkers(shelterDataList);
+            } catch (e) {
+                console.error(e);
             }
-
-            document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 전국 대피소 로드 완료`;
-            renderShelterList(shelterDataList);
-            renderMapMarkers(shelterDataList);
         }
 
         function renderMapMarkers(shelters) {
             markersGroup.clearLayers();
-            const renderTarget = shelters.slice(0, 600); // 렌더링 최적화
-
-            renderTarget.forEach(shelter => {
-                const marker = L.marker([shelter.lat, shelter.lng]);
-                marker.bindPopup(`
-                    <div style="color: #333; font-family: sans-serif; min-width: 210px;">
-                        <b style="font-size: 13px; color: #d32f2f;">🛡️ ${shelter.facilityName}</b><br>
-                        <hr style="margin: 4px 0; border: 0; border-top: 1px solid #ccc;">
-                        <b>도로명:</b> ${shelter.roadAddress || '정보 없음'}<br>
-                        <b>지번:</b> ${shelter.address}<br>
-                        <b>구분:</b> ${shelter.facilityType} (${shelter.locationDesc})
-                    </div>
-                `);
-                markersGroup.addLayer(marker);
+            shelters.slice(0, 500).forEach(s => {
+                L.marker([s.lat, s.lng]).bindPopup(`<b>🛡️ ${s.facilityName}</b><br>${s.roadAddress || s.address}<br>유형: ${s.type}`).addTo(markersGroup);
             });
         }
 
@@ -330,47 +274,25 @@
             const container = document.getElementById('shelter-list-container');
             document.getElementById('shelter-count').textContent = shelters.length;
             container.innerHTML = '';
-
-            if (shelters.length === 0) {
-                container.innerHTML = `<div style="padding: 10px; text-align: center; color: #888;">검색 결과가 없습니다.</div>`;
-                return;
-            }
-
-            shelters.slice(0, 250).forEach(shelter => {
+            
+            shelters.slice(0, 200).forEach(s => {
                 const item = document.createElement('div');
                 item.className = 'shelter-item';
-                item.innerHTML = `
-                    <div class="shelter-name">${shelter.facilityName}</div>
-                    <div class="shelter-addr">${shelter.roadAddress || shelter.address}</div>
-                `;
-                
-                // 클릭 시 해당 대피소 위치로 부드럽게 이동 및 팝업 오픈
-                item.addEventListener('click', () => {
-                    map.flyTo([shelter.lat, shelter.lng], 17, {
-                        duration: 1.2
-                    });
-                    document.getElementById('status-msg').textContent = `📍 위치 이동: ${shelter.facilityName}`;
-                });
-
+                item.innerHTML = `<div class="shelter-name">${s.facilityName}</div><div class="shelter-addr">${s.roadAddress || s.address}</div>`;
+                item.addEventListener('click', () => { map.flyTo([s.lat, s.lng], 17); });
                 container.appendChild(item);
             });
         }
 
-        document.getElementById('search-shelter').addEventListener('input', (e) => {
-            const keyword = e.target.value.toLowerCase();
-            const filtered = shelterDataList.filter(s => 
-                s.facilityName.toLowerCase().includes(keyword) || 
-                s.address.toLowerCase().includes(keyword) || 
-                s.roadAddress.toLowerCase().includes(keyword)
-            );
+        // 실시간 로컬 대피소 필터링
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const kw = e.target.value.toLowerCase().trim();
+            const filtered = shelterDataList.filter(s => (s.facilityName&&s.facilityName.toLowerCase().includes(kw)) || (s.address&&s.address.toLowerCase().includes(kw)));
             renderShelterList(filtered);
             renderMapMarkers(filtered);
         });
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initMap();
-            loadShelterCSV();
-        });
+        window.onload = () => { initMap(); loadShelterCSV(); };
     </script>
 </body>
 </html>
