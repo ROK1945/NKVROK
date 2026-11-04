@@ -41,7 +41,7 @@
 <body>
 
     <div id="sidebar">
-        <h1>🎖️ 현대전 국방·전술 시뮬레이션 (NKVKOK)</h1>
+        <h1>🎖️ 현대전 국방·전술 남침 시뮬레이션 (NKVKOK)</h1>
         
         <!-- 위협 단계 설정 및 페이즈 시나리오 -->
         <div class="control-group">
@@ -57,14 +57,14 @@
 
         <!-- 북한 위협 무기 선택 -->
         <div class="control-group">
-            <label for="weapon-type">북한 위협 무기 및 타격 체계</label>
+            <label for="weapon-type">북한 위협 무기 및 남침 진격 축선 선택</label>
             <select id="weapon-type">
                 <option value="artillery" selected>장사정포 및 300/600mm 방사포 (수도권 전면 포격)</option>
                 <option value="nuke">전술핵폭탄 (150kt 공중폭발·열섬·방사능 반경)</option>
-                <option value="armor">제1전선군단 및 제2군단 기갑돌파 축선 (철원·문산)</option>
+                <option value="armor">북한군 기갑부대 돌파 축선 (철원·문산 축선 남침)</option>
                 <option value="emp">고고도 EMP탄 (전자기기 무력화)</option>
             </select>
-            <button id="btn-strike">🎯 지정된 지도 중심점에 타격/진격 시뮬레이션 전개</button>
+            <button id="btn-strike">🎯 선택한 전술 축선 및 타격 범위 시뮬레이션 전개</button>
         </div>
 
         <!-- 지도 모드 선택 -->
@@ -100,22 +100,20 @@
         let map;
         let shelterDataList = [];
         let markersGroup = L.layerGroup();
-        let tacticalLayer = L.layerGroup(); // 진격선 및 타격 범위 레이어
+        let tacticalLayer = L.layerGroup(); // 진격선, 방어선, 타격 범위 레이어
         let tileLayers = {};
 
-        // 국방백서 및 KIDA/RAND 현대전 시나리오 기반 페이즈별 분석
+        // DEFCON 페이즈별 북한군 진격 양상 및 국군 방어선 정의
         const phaseScenarios = {
-            '4': "<b>[Phase 1] 평시 경계 (DEFCON 4):</b> 북한군 4개 전선군단 및 기계화부대 통상 배치 상태. 남북 접경지역 특이 징후 감시 중.",
-            '3': "<b>[Phase 2] 국지전 징후 (DEFCON 3):</b> 전방 장사정포(170mm 자주포, 240/300mm 방사포) 진지 구축 및 방포문 개방 포착. 후방 제2경제위원회의 전시 생산 체제 전환.",
-            '2': "<b>[Phase 3] 전면전 임박 (DEFCON 2):</b> 평양 방어 부대 및 기갑사단 전방 전개. 서부전선(문산-개성 축선) 및 중부전선(철원 축선)으로의 기갑 전력 밀집 징후.",
-            '1': "<b>[Phase 4] 전면 남침 및 수도권 타격 (DEFCON 1):</b> 북한군의 기습 탄도미사일 및 방사포 사격 개시. 철원·문산 축선으로 제1·제2 기갑군단 돌파 개시. 수도권 전역 공습 경보 발령."
+            '4': "<b>[Phase 1] 평시 경계 (DEFCON 4):</b> 북한군 4개 전선군단 휴전선 일대 대치. 국군 지상작전사령부 전방 경계태세 유지.",
+            '3': "<b>[Phase 2] 국지전 징후 (DEFCON 3):</b> 전방 장사정포 포신 개방. 국군은 임진강 및 철원 일대 초기 저지 진지 점령 태세.",
+            '2': "<b>[Phase 3] 전면전 임박 (DEFCON 2):</b> 북한군 제1·2기갑군단 전방 전개. 국군은 문산-철원-속초를 잇는 주저항선(1방어선) 전개.",
+            '1': "<b>[Phase 4] 전면 남침 및 수도권 돌파 (DEFCON 1):</b> 북한군 기갑부대가 문산·철원 축선으로 돌파 시도. 국군은 한강 방어선 및 수도권 외곽 요충지에서 결사 방어 개시."
         };
 
         function initMap() {
-            // 서울 중심 초기화
             map = L.map('map', { maxZoom: 19, minZoom: 6 }).setView([37.5665, 126.9780], 11);
 
-            // V-World 타일 레이어
             tileLayers.satellite = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`, { maxZoom: 19 });
             tileLayers.standard = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Base/{z}/{y}/{x}.png`, { maxZoom: 19 });
             tileLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 });
@@ -124,9 +122,12 @@
             markersGroup.addTo(map);
             tacticalLayer.addTo(map);
 
-            // 지도 클릭 시 타격 시뮬레이션
+            // 초기 실행 시 기본 전술 축선(수도권 포격 및 방어선) 자동 렌더링
+            renderTacticalLines('artillery', 37.5665, 126.9780);
+
             map.on('click', (e) => {
-                executeTacticalSimulation(e.latlng.lat, e.latlng.lng);
+                const weapon = document.getElementById('weapon-type').value;
+                renderTacticalLines(weapon, e.latlng.lat, e.latlng.lng);
             });
 
             updatePhaseDescription();
@@ -146,14 +147,33 @@
 
         document.getElementById('btn-strike').addEventListener('click', () => {
             const center = map.getCenter();
-            executeTacticalSimulation(center.lat, center.lng);
+            const weapon = document.getElementById('weapon-type').value;
+            renderTacticalLines(weapon, center.lat, center.lng);
         });
 
-        // 전술 타격 및 남북 진격 축선 시각화 시뮬레이션
-        function executeTacticalSimulation(lat, lng) {
+        // 북한군 남침 진격선, 국군 방어선, 무기 타격 범위를 지도에 시각화하는 핵심 함수
+        function renderTacticalLines(weapon, lat, lng) {
             tacticalLayer.clearLayers();
-            const weapon = document.getElementById('weapon-type').value;
-            
+
+            // 1. 국군 주방어선 (한강 및 문산-철원 선) 시각화 (청색 라인)
+            const rokDefenseLine = L.polyline([
+                [37.75, 126.60], // 강화/문산 방어선
+                [37.85, 127.05], // 연천/철원 방어선
+                [38.10, 127.50], // 화천/양구 방어선
+                [38.25, 128.40]  // 고성 방어선 (휴전선 인근 국군 1야전군 방어선)
+            ], { color: '#00d2d3', weight: 4, dashArray: '5, 5' });
+            rokDefenseLine.bindPopup("<b>🛡️ 대한민국 국군 주저항선 (1방어선)</b><br>지상작전사령부 예하 부대 결사 방어선");
+            tacticalLayer.addLayer(rokDefenseLine);
+
+            // 2. 국군 한강 최종 방어선 (청색 실선)
+            const rokHanRiverLine = L.polyline([
+                [37.58, 126.80], // 김포/행주대교
+                [37.52, 126.95], // 서울 용산/한강대교
+                [37.55, 127.10]  // 하남/잠실철교
+            ], { color: '#0097e6', weight: 5 });
+            rokHanRiverLine.bindPopup("<b>🛡️ 국군 한강 최종 방어선</b><br>수도권 사수를 위한 최후 저지선");
+            tacticalLayer.addLayer(rokHanRiverLine);
+
             let radius = 5000;
             let color = '#ff4757';
             let title = "전술 시뮬레이션";
@@ -161,42 +181,60 @@
             if (weapon === 'artillery') {
                 radius = 15000;
                 color = '#ff9f43';
-                title = "장사정포/방사포 포격 탄착군 반경 (15km)";
+                title = "북한군 장사정포/방사포 포격 탄착군 (수도권 위협 반경 15km)";
+                
+                // 장사정포 포격 원점(개성/평강 일대)에서 내려오는 화살표
+                const nkorArtilleryStrike = L.polyline([
+                    [37.98, 126.65], [lat, lng]
+                ], { color: '#ff9f43', weight: 3 });
+                tacticalLayer.addLayer(nkorArtilleryStrike);
+
             } else if (weapon === 'nuke') {
                 radius = 30000;
                 color = '#ff3838';
-                title = "전술핵 150kt 열섬·폭풍파·방사능 피해 반경 (30km)";
+                title = "전술핵폭탄 150kt 폭발 피해 반경 (30km)";
+
             } else if (weapon === 'armor') {
                 radius = 20000;
                 color = '#e84118';
-                title = "북한군 기갑부대 돌파 축선 및 진격 예상선 (철원-문산 축선)";
+                title = "북한군 제1·2기갑군단 남침 돌파 축선 (철원·문산 축선)";
+
+                // 북한군 기갑부대 남침 진격선 (붉은색 화살표 동선)
+                const nkorArmorAdvance1 = L.polyline([
+                    [38.30, 126.70], [37.95, 126.78], [lat, lng] // 서부 문산 축선 돌파
+                ], { color: '#ff3838', weight: 5 });
                 
-                // 기갑 돌파 화살표(라인) 시각화 추가
-                const breakthroughLine = L.polyline([
-                    [38.2, 127.1], // 휴전선 북쪽
-                    [lat, lng]     // 타격/돌파 목표 지점
-                ], { color: '#ff3838', weight: 4, dashArray: '10, 10' });
-                tacticalLayer.addLayer(breakthroughLine);
+                const nkorArmorAdvance2 = L.polyline([
+                    [38.25, 127.30], [38.05, 127.20], [37.80, 127.10] // 중부 철원 축선 돌파
+                ], { color: '#ff3838', weight: 5 });
+
+                nkorArmorAdvance1.bindPopup("<b>🚨 북한군 제1기갑사단 남침 주공 (문산 축선)</b>");
+                nkorArmorAdvance2.bindPopup("<b>🚨 북한군 제2기갑사단 남침 조공 (철원 축선)</b>");
+                
+                tacticalLayer.addLayer(nkorArmorAdvance1);
+                tacticalLayer.addLayer(nkorArmorAdvance2);
+
             } else if (weapon === 'emp') {
                 radius = 60000;
                 color = '#00d2d3';
-                title = "고고도 EMP 전자기파 타격 영향권 (반경 60km)";
+                title = "고고도 EMP탄 타격 전자기파 영향권 (반경 60km)";
             }
 
+            // 타격/피해 범위 원형 표시
             const circle = L.circle([lat, lng], {
                 color: color,
                 fillColor: color,
-                fillOpacity: 0.35,
+                fillOpacity: 0.3,
                 radius: radius
             });
 
             circle.bindPopup(`<b>💥 ${title}</b><br>중심 좌표: ${lat.toFixed(4)}, ${lng.toFixed(4)}<br>즉시 인근 지하 대피소로 분산 대피하십시오!`).openPopup();
             tacticalLayer.addLayer(circle);
 
-            document.getElementById('status-msg').textContent = `🎯 전술 전개 완료: ${title}`;
+            document.getElementById('status-msg').textContent = `🎯 전술 전개 완료: 북한군 진격선 및 국군 방어선 표시됨`;
         }
 
-        // CSV 안전 파싱 함수
+        // CSV 안전 파싱 및 대피소 로드 함수
         function parseCSVLine(text) {
             let result = [];
             let current = '';
@@ -216,7 +254,6 @@
             return result;
         }
 
-        // Shelter.csv 비동기 로드
         async function loadShelterCSV() {
             try {
                 const response = await fetch('Shelter.csv');
@@ -240,7 +277,6 @@
             }
         }
 
-        // CSV 파싱 (정확한 [16] 위도, [17] 경도 매핑)
         function parseCSV(csvText) {
             const lines = csvText.split(/\r\n|\n/);
             shelterDataList = [];
@@ -271,7 +307,6 @@
             renderMapMarkers(shelterDataList);
         }
 
-        // 지도 마커 렌더링
         function renderMapMarkers(shelters) {
             markersGroup.clearLayers();
             const renderTarget = shelters.slice(0, 600); // 렌더링 최적화
@@ -291,7 +326,6 @@
             });
         }
 
-        // 대피소 목록 렌더링 (클릭 시 flyTo 즉시 이동)
         function renderShelterList(shelters) {
             const container = document.getElementById('shelter-list-container');
             document.getElementById('shelter-count').textContent = shelters.length;
@@ -322,7 +356,6 @@
             });
         }
 
-        // 검색 필터 이벤트
         document.getElementById('search-shelter').addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = shelterDataList.filter(s => 
