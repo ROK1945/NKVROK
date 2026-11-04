@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>대한민국 민방위 및 비상 대피 시뮬레이터 (NKVKOK)</title>
     
+    <!-- Leaflet 지도 라이브러리 CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #121212; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: 380px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 10; }
+        #sidebar { width: 380px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 1000; }
         h1 { font-size: 18px; margin-bottom: 15px; color: #ff5252; border-bottom: 2px solid #ff5252; padding-bottom: 8px; }
         
         .control-group { margin-bottom: 15px; }
         label { display: block; font-size: 13px; margin-bottom: 5px; color: #aaa; }
-        select, input, button { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 14px; }
+        select, input { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 14px; }
         
         #shelter-list-container { flex-grow: 1; overflow-y: auto; margin-top: 10px; border: 1px solid #333; background: #181818; border-radius: 4px; padding: 10px; }
         .shelter-item { padding: 10px; border-bottom: 1px solid #2a2a2a; font-size: 12px; cursor: pointer; }
@@ -22,32 +25,9 @@
         .shelter-name { font-weight: bold; color: #ff8a80; font-size: 13px; margin-bottom: 3px; }
         .shelter-addr { color: #aaa; font-size: 11px; }
 
-        #map-container { flex-grow: 1; height: 100%; position: relative; background: #0a0a0c; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #map { flex-grow: 1; height: 100%; z-index: 1; }
         
-        .radar-grid {
-            position: absolute; width: 200%; height: 200%;
-            background-image: 
-                linear-gradient(rgba(0, 255, 128, 0.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 128, 0.08) 1px, transparent 1px);
-            background-size: 50px 50px;
-        }
-
-        .map-marker {
-            position: absolute; width: 14px; height: 14px; background: #00ffcc; border-radius: 50%;
-            box-shadow: 0 0 12px #00ffcc; cursor: pointer; transform: translate(-50%, -50%);
-            transition: transform 0.2s, background 0.2s;
-        }
-        .map-marker:hover { background: #ff5252; transform: translate(-50%, -50%) scale(1.6); z-index: 100; }
-        
-        #map-tooltip {
-            position: absolute; bottom: 25px; right: 25px; background: rgba(20, 20, 25, 0.95);
-            border: 1px solid #00ffcc; padding: 15px; border-radius: 6px; font-size: 13px;
-            max-width: 320px; z-index: 100; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.7);
-        }
-        #map-tooltip h3 { color: #00ffcc; margin-bottom: 8px; font-size: 14px; }
-        #map-tooltip p { margin-bottom: 4px; color: #ccc; }
-        
-        #status-msg { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 4px; font-size: 12px; border-left: 3px solid #00ffcc; z-index: 10; color: #00ffcc; }
+        #status-msg { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.85); padding: 8px 15px; border-radius: 4px; font-size: 12px; border-left: 3px solid #00ffcc; z-index: 2000; color: #00ffcc; }
     </style>
 </head>
 <body>
@@ -66,28 +46,62 @@
         </div>
 
         <div class="control-group">
-            <label for="search-shelter">대피소 검색</label>
-            <input type="text" id="search-shelter" placeholder="시설명 또는 지역 입력 (예: 성균관대)">
+            <label for="search-shelter">대피소 검색 (지역/시설명)</label>
+            <input type="text" id="search-shelter" placeholder="예: 종로구, 성균관대, 부산">
         </div>
 
         <label>근린 대피소 목록 (<span id="shelter-count">0</span>개)</label>
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #666; padding: 20px;">데이터 로딩 중...</div>
+            <div style="text-align: center; color: #666; padding: 20px;">전국 대피소 데이터 로딩 중...</div>
         </div>
     </div>
 
-    <div id="map-container">
-        <div class="radar-grid"></div>
-        <div id="status-msg">전술 지도 시스템 가동 중</div>
-        <div id="map-tooltip"></div>
-    </div>
+    <div id="map"></div>
+    <div id="status-msg">시스템 초기화 중...</div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        let map;
         let shelterDataList = [];
+        let markersGroup = L.layerGroup();
+
+        function initMap() {
+            map = L.map('map').setView([37.5665, 126.9780], 11);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap & CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            markersGroup.addTo(map);
+        }
+
+        // CSV 라인을 따옴표와 쉼표를 고려하여 안전하게 파싱하는 정규식 함수
+        function parseCSVLine(text) {
+            let result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < text.length; i++) {
+                let char = text[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
 
         async function loadShelterCSV() {
             try {
-                // 한글 깨짐 방지를 위해 EUC-KR(또는 CP949)로 인코딩 읽기 시도 후 안되면 기본 처리
                 const response = await fetch('Shelter.csv');
                 if (!response.ok) throw new Error(`HTTP 에러: ${response.status}`);
                 
@@ -95,7 +109,6 @@
                 let decoder = new TextDecoder('utf-8');
                 let csvText = decoder.decode(buffer);
                 
-                // 만약 한글이 깨진다면 euc-kr로 디코딩 재시도
                 if (csvText.includes('')) {
                     decoder = new TextDecoder('euc-kr');
                     csvText = decoder.decode(buffer);
@@ -106,7 +119,7 @@
                 console.error("파일 로드 실패:", error);
                 document.getElementById('shelter-list-container').innerHTML = 
                     `<div style="color: #ff5252; padding: 10px; text-align: center;">파일을 불러오지 못했습니다.<br>Shelter.csv 파일을 확인해주세요.</div>`;
-                document.getElementById('status-msg').textContent = "⚠️ 대피소 데이터 로드 실패";
+                document.getElementById('status-msg').textContent = "⚠️ 데이터 로드 실패";
             }
         }
 
@@ -118,17 +131,20 @@
                 const line = lines[i].trim();
                 if (!line) continue;
                 
-                // 간단한 쉼표 파싱 (따옴표 고려)
-                const columns = line.split(',');
+                const columns = parseCSVLine(line);
 
-                if (columns.length >= 7) {
-                    const address = columns[0].replace(/["']/g, "").trim();
-                    const roadAddress = columns[1].replace(/["']/g, "").trim();
-                    const facilityName = columns[2].replace(/["']/g, "").trim();
-                    const facilityType = columns[3].replace(/["']/g, "").trim();
-                    const locationDesc = columns[4].replace(/["']/g, "").trim();
-                    const lat = parseFloat(columns[5]);
-                    const lng = parseFloat(columns[6]);
+                // 업로드하신 CSV 구조: 
+                // [0] 소재지전체주소, [1] 도로명전체주소, [2] 시설명, [3] 시설구분, [4] 시설위치, [5] 위도(EPSG4326 또는 위도도), [6] 경도(EPSG4326)
+                // 만약 EPSG4326 위경도 컬럼이 뒤쪽에 있다면 인덱스 확인 필요. 본문 구조상 위경도 컬럼 위치 확인:
+                // 표준 엑셀 구조 기준: 위도(EPSG4326)와 경도(EPSG4326) 컬럼 위치 탐색
+                if (columns.length >= 18) {
+                    const address = columns[2].replace(/^["']|["']$/g, "");     // 소재지전체주소
+                    const roadAddress = columns[3].replace(/^["']|["']$/g, ""); // 도로명전체주소
+                    const facilityName = columns[5].replace(/^["']|["']$/g, "");// 시설명
+                    const facilityType = columns[6].replace(/^["']|["']$/g, "");// 시설구분
+                    const locationDesc = columns[7].replace(/^["']|["']$/g, "");// 시설위치
+                    const lat = parseFloat(columns[12]); // 위도(EPSG4326)
+                    const lng = parseFloat(columns[13]); // 경도(EPSG4326)
 
                     if (!isNaN(lat) && !isNaN(lng)) {
                         shelterDataList.push({ address, roadAddress, facilityName, facilityType, locationDesc, lat, lng });
@@ -136,49 +152,29 @@
                 }
             }
 
-            document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 대피소 데이터 로드 완료`;
+            document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 대피소 로드 완료`;
             renderShelterList(shelterDataList);
             renderMapMarkers(shelterDataList);
         }
 
+        // 성능 최적화 및 렉 방지를 위해 지도에는 처음 500개만 마커 표시 (검색 시 필터링됨)
         function renderMapMarkers(shelters) {
-            const mapContainer = document.getElementById('map-container');
-            document.querySelectorAll('.map-marker').forEach(m => m.remove());
+            markersGroup.clearLayers();
 
-            if (shelters.length === 0) return;
-
-            let minLat = Math.min(...shelters.map(s => s.lat));
-            let maxLat = Math.max(...shelters.map(s => s.lat));
-            let minLng = Math.min(...shelters.map(s => s.lng));
-            let maxLng = Math.max(...shelters.map(s => s.lng));
-
-            shelters.forEach(shelter => {
-                const marker = document.createElement('div');
-                marker.className = 'map-marker';
-
-                const x = ((shelter.lng - minLng) / (maxLng - minLng || 1)) * 80 + 10;
-                const y = 90 - ((shelter.lat - minLat) / (maxLat - minLat || 1)) * 80;
-
-                marker.style.left = `${x}%`;
-                marker.style.top = `${y}%`;
-
-                marker.addEventListener('click', () => {
-                    showTooltip(shelter);
-                });
-
-                mapContainer.appendChild(marker);
+            const renderTarget = shelters.slice(0, 500);
+            renderTarget.forEach(shelter => {
+                const marker = L.marker([shelter.lat, shelter.lng]);
+                marker.bindPopup(`
+                    <div style="color: #333; font-family: sans-serif; min-width: 200px;">
+                        <b style="font-size: 14px; color: #d32f2f;">🛡️ ${shelter.facilityName}</b><br>
+                        <hr style="margin: 5px 0; border: 0; border-top: 1px solid #ccc;">
+                        <b>도로명:</b> ${shelter.roadAddress || '정보 없음'}<br>
+                        <b>지번:</b> ${shelter.address}<br>
+                        <b>구분:</b> ${shelter.facilityType} (${shelter.locationDesc})
+                    </div>
+                `);
+                markersGroup.addLayer(marker);
             });
-        }
-
-        function showTooltip(shelter) {
-            const tooltip = document.getElementById('map-tooltip');
-            tooltip.style.display = 'block';
-            tooltip.innerHTML = `
-                <h3>🛡️ ${shelter.facilityName}</h3>
-                <p><b>도로명주소:</b> ${shelter.roadAddress || '정보 없음'}</p>
-                <p><b>지번주소:</b> ${shelter.address}</p>
-                <p><b>시설구분:</b> ${shelter.facilityType} (${shelter.locationDesc})</p>
-            `;
         }
 
         function renderShelterList(shelters) {
@@ -191,7 +187,8 @@
                 return;
             }
 
-            shelters.forEach(shelter => {
+            // 리스트는 최대 200개까지만 렌더링하여 브라우저 속도 유지
+            shelters.slice(0, 200).forEach(shelter => {
                 const item = document.createElement('div');
                 item.className = 'shelter-item';
                 item.innerHTML = `
@@ -200,7 +197,7 @@
                 `;
                 
                 item.addEventListener('click', () => {
-                    showTooltip(shelter);
+                    map.setView([shelter.lat, shelter.lng], 16);
                 });
 
                 container.appendChild(item);
@@ -219,6 +216,7 @@
         });
 
         window.addEventListener('DOMContentLoaded', () => {
+            initMap();
             loadShelterCSV();
         });
     </script>
