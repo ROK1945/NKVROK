@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대한민국 전술 워게임 및 민방위 대피 시뮬레이터 (NKVKOK)</title>
+    <title>대한민국 전술 워게임 및 전국 민방위 시뮬레이터 (NKVKOK)</title>
     
-    <!-- Leaflet 지도 라이브러리 CSS -->
+    <!-- Leaflet & MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,23 +24,19 @@
         button { background: #c62828; border: none; font-weight: bold; cursor: pointer; margin-top: 4px; transition: background 0.2s; }
         button:hover { background: #e53935; }
         
-        /* 실행 취소 및 검색 버튼 특화 */
         #btn-undo { background: #37474f; border: 1px solid #546e7a; margin-bottom: 8px; }
         #btn-undo:hover { background: #455a64; }
         #btn-global-search { background: #1976d2; }
         #btn-global-search:hover { background: #2196f3; }
 
-        /* 페이즈 시나리오 분석 박스 */
         #phase-box { background: #1b263b; border-left: 4px solid #ff4757; padding: 10px; font-size: 12px; line-height: 1.4; margin-top: 4px; border-radius: 0 4px 4px 0; color: #cfd8dc; }
         
-        /* 대피소 목록 영역 */
-        #shelter-list-container { max-height: 180px; overflow-y: auto; margin-top: 4px; border: 1px solid #2a3447; background: #0f141f; border-radius: 4px; padding: 4px; }
+        #shelter-list-container { max-height: 200px; overflow-y: auto; margin-top: 4px; border: 1px solid #2a3447; background: #0f141f; border-radius: 4px; padding: 4px; }
         .shelter-item { padding: 8px; border-bottom: 1px solid #1e293b; font-size: 11px; cursor: pointer; }
         .shelter-item:hover { background: #1f2937; }
         .shelter-name { font-weight: bold; color: #ff8a80; font-size: 12px; margin-bottom: 2px; }
         .shelter-addr { color: #9ca3af; font-size: 10px; }
 
-        /* 우측 지도 영역 */
         #map { flex-grow: 1; height: 100%; z-index: 1; }
         #status-msg { position: absolute; top: 15px; right: 15px; background: rgba(15, 23, 42, 0.92); padding: 10px 18px; border-radius: 4px; font-size: 12px; border-left: 4px solid #00ffcc; z-index: 2000; color: #00ffcc; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
 
@@ -52,7 +50,7 @@
 <body>
 
     <div id="sidebar">
-        <h1>🎖️ 전술 워게임 & 민방위 시뮬레이터 (NKVKOK)</h1>
+        <h1>🎖️ 전술 워게임 & 전국 대피 시뮬레이터 (NKVKOK)</h1>
         
         <button id="btn-undo">🔄 지도 전술 그래픽 및 시뮬레이션 초기화</button>
 
@@ -70,7 +68,7 @@
         <div class="control-group">
             <label for="weapon-type">북한 위협 무기 체계 및 공격 축선</label>
             <select id="weapon-type">
-                <option value="artillery" selected>[화력전] 장사정포/방사포 갱도진지 개방 (수도권 무차별 포격)</option>
+                <option value="artillery" selected>[화력전] 장사정포/방사포 갱도진지 개방 (수도권 전면 포격)</option>
                 <option value="armor">[기동전] 제1·2기갑군단 남침 돌파 축선 (철원·문산 축선)</option>
                 <option value="nuke">[비대칭] KN-23/전술핵 공중폭발 (150kt 열섬·방사능)</option>
                 <option value="emp">[전자전] 고고도 EMP 전자기파 타격 (지휘통제망 차단)</option>
@@ -89,27 +87,28 @@
 
         <div class="control-group">
             <label>통합 위치 및 전국 대피소 검색</label>
-            <input type="text" id="search-input" placeholder="주소, 지역, 또는 대피소명 입력 (예: 서울역, 종로구, 성균관대)">
-            <button id="btn-global-search">🔍 지도 지명/주소 위치 강제 검색 및 이동</button>
+            <input type="text" id="search-input" placeholder="전국 주소, 광역시/도, 지명 또는 대피소명 (예: 부산, 수원, 대구, 포항)">
+            <button id="btn-global-search">🔍 지도 지명/주소 위치 검색 및 이동</button>
         </div>
 
-        <label>근린 대피소 목록 (<span id="shelter-count">0</span>개) - 클릭 시 즉시 지도 이동</label>
+        <label>검색/근린 대피소 목록 (<span id="shelter-count">0</span>개) - 클릭 시 즉시 지도 이동</label>
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #666; padding: 15px;">Shelter.csv 파싱 중...</div>
+            <div style="text-align: center; color: #666; padding: 15px;">전국 대피소 데이터 로딩 중...</div>
         </div>
     </div>
 
     <div id="map"></div>
     <div id="status-msg">시스템 초기화 중...</div>
 
-    <!-- Leaflet JS -->
+    <!-- Leaflet & MarkerCluster JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
     <script>
         const VWORLD_API_KEY = "AB8056F3-8810-4503-9544-FA9F94BB07C1";
         let map;
         let shelterDataList = [];
-        let markersGroup = L.layerGroup();
+        let markerClusterGroup; // 전국 18,000+개 마커 클러스터 그룹
         let tacticalLayer = L.layerGroup();
         let tileLayers = {};
 
@@ -120,7 +119,6 @@
             '1': "<b>[DEFCON 1] 전면 남침:</b> 북한군 전면 포격 및 전차부대 남하 개시. 민간인 권장 대피로를 통해 이남으로 긴급 이동."
         };
 
-        // 피아 식별 아이콘 생성
         const createMilIcon = (type, title) => L.divIcon({
             className: 'mil-icon-wrapper',
             html: type === 'hostile' 
@@ -130,34 +128,38 @@
         });
 
         function initMap() {
-            map = L.map('map', { maxZoom: 19, minZoom: 6 }).setView([37.5665, 126.9780], 10);
+            // 초기 지도를 한반도 전역이 보이도록 설정
+            map = L.map('map', { maxZoom: 19, minZoom: 6 }).setView([36.5, 127.8], 7);
 
-            // 브이월드 API 및 타일 레이어 (오류 대비 카토DB/OSM 백업 포함)
             tileLayers.satellite = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`, {
-                maxZoom: 19,
-                errorTileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                maxZoom: 19, errorTileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
             });
 
             tileLayers.standard = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Base/{z}/{y}/{x}.png`, {
-                maxZoom: 19,
-                errorTileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                maxZoom: 19, errorTileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             });
 
             tileLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 });
 
             tileLayers.satellite.addTo(map);
-            markersGroup.addTo(map);
+
+            // 마커 클러스터 초기화 (대용량 18,000+개 렌더링 최적화)
+            markerClusterGroup = L.markerClusterGroup({
+                chunkedLoading: true,
+                maxClusterRadius: 50,
+                disableClusteringAtZoom: 15
+            });
+
+            map.addLayer(markerClusterGroup);
             tacticalLayer.addTo(map);
 
             updatePhaseBox();
             
-            // 지도 클릭 시 시뮬레이션 연동
             map.on('click', (e) => {
                 runWargameSimulation(document.getElementById('weapon-type').value, e.latlng.lat, e.latlng.lng);
             });
         }
 
-        // 실행 취소(초기화) 버튼
         document.getElementById('btn-undo').addEventListener('click', () => {
             tacticalLayer.clearLayers();
             document.getElementById('status-msg').textContent = "🔄 전술 그래픽 및 시뮬레이션 레이어가 초기화되었습니다.";
@@ -178,12 +180,32 @@
             runWargameSimulation(document.getElementById('weapon-type').value, center.lat, center.lng);
         });
 
-        // 🔍 지명/주소 외부 위치 검색 (OpenStreetMap Nominatim HTTPS 안전 연동)
+        // 🔍 지명 및 대피소 검색 시 해당 지역으로 지도 자동 이동(fitBounds / flyTo)
         document.getElementById('btn-global-search').addEventListener('click', async () => {
             const keyword = document.getElementById('search-input').value.trim();
             if(!keyword) return;
 
-            document.getElementById('status-msg').textContent = `🔍 [${keyword}] 위치 정보 탐색 중...`;
+            document.getElementById('status-msg').textContent = `🔍 [${keyword}] 위치 검색 중...`;
+            
+            // 1차: 로컬 대피소 데이터에서 먼저 검색
+            const matchedShelters = shelterDataList.filter(s => 
+                (s.facilityName && s.facilityName.includes(keyword)) || 
+                (s.address && s.address.includes(keyword)) || 
+                (s.roadAddress && s.roadAddress.includes(keyword))
+            );
+
+            if (matchedShelters.length > 0) {
+                renderShelterList(matchedShelters);
+                renderMapMarkers(matchedShelters);
+                
+                // 검색된 대피소들의 영역으로 지도 자동 카메라 이동
+                const bounds = L.latLngBounds(matchedShelters.map(s => [s.lat, s.lng]));
+                map.fitBounds(bounds, { maxZoom: 14, padding: [30, 30] });
+                document.getElementById('status-msg').textContent = `📍 전국 데이터에서 [${keyword}] 대피소 ${matchedShelters.length}개 발견 및 이동`;
+                return;
+            }
+
+            // 2차: 로컬에 없으면 OpenStreetMap 글로벌 좌표 API 조회
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(keyword)}&accept-language=ko`);
                 const data = await response.json();
@@ -191,21 +213,18 @@
                     const lat = parseFloat(data[0].lat);
                     const lon = parseFloat(data[0].lon);
                     map.flyTo([lat, lon], 14, { duration: 1.5 });
-                    document.getElementById('status-msg').textContent = `📍 위치 이동 완료: ${data[0].display_name}`;
+                    document.getElementById('status-msg').textContent = `📍 지명 위치 이동 완료: ${data[0].display_name}`;
                 } else {
-                    document.getElementById('status-msg').textContent = `⚠️ 검색된 위치가 없습니다. 대피소 이름을 검색해 보세요.`;
+                    document.getElementById('status-msg').textContent = `⚠️ [${keyword}] 검색 결과가 없습니다.`;
                 }
             } catch(err) {
-                console.error("지명 검색 에러:", err);
-                document.getElementById('status-msg').textContent = `⚠️ 주소 검색 중 네트워크 오류가 발생했습니다.`;
+                document.getElementById('status-msg').textContent = `⚠️ 위치 검색 오류 발생`;
             }
         });
 
-        // 워게임 시뮬레이션 전계 (진격선, 방어선, 대피로, 아이콘)
         function runWargameSimulation(scenario, lat, lng) {
             tacticalLayer.clearLayers();
 
-            // 1. 국군 주방어선 (FEBA) 및 한강 방어선 (청색 선)
             const febaLine = L.polyline([[37.75, 126.60], [37.85, 127.05], [38.10, 127.50], [38.25, 128.40]], { color: '#2e86de', weight: 4, dashArray: '6, 6' });
             febaLine.bindPopup("<b>🛡️ 대한민국 국군 주저항선 (FEBA Alpha)</b>");
             tacticalLayer.addLayer(febaLine);
@@ -214,13 +233,11 @@
             hanRiverLine.bindPopup("<b>🛡️ 국군 한강 방어선</b>");
             tacticalLayer.addLayer(hanRiverLine);
 
-            // 국군 부대 아이콘
             L.marker([37.85, 127.05], { icon: createMilIcon('friendly', '제1군단 지휘소') }).addTo(tacticalLayer);
             L.marker([37.52, 126.95], { icon: createMilIcon('friendly', '수도방위사령부') }).addTo(tacticalLayer);
 
-            // 2. 민간인 권장 대피로 (녹색 점선 화살표)
             const evacRoute = L.polyline([[lat, lng], [37.26, 127.02], [36.35, 127.38]], { color: '#00e676', weight: 4, dashArray: '8, 12' });
-            evacRoute.bindPopup("<b>🟢 민간인 권장 대피 경로</b><br>수업/위험지역 이탈 -> 수원/대전 방향 남하");
+            evacRoute.bindPopup("<b>🟢 민간인 권장 대피 경로</b><br>수원/대전 방향 이남 안전지대 이동");
             tacticalLayer.addLayer(evacRoute);
 
             let radius = 5000;
@@ -235,7 +252,6 @@
             } else if (scenario === 'armor') {
                 radius = 20000; color = '#e84118'; title = "적 기갑군단 점령 시도 구역";
                 L.marker([38.30, 126.70], { icon: createMilIcon('hostile', '적 제1기갑군단') }).addTo(tacticalLayer);
-                
                 const adv1 = L.polyline([[38.30, 126.70], [37.95, 126.78], [lat, lng]], { color: '#ff3838', weight: 5 });
                 const adv2 = L.polyline([[38.25, 127.30], [38.05, 127.20], [37.80, 127.10]], { color: '#ff3838', weight: 5 });
                 tacticalLayer.addLayer(adv1);
@@ -254,10 +270,9 @@
             strikeCircle.bindPopup(`<b>💥 ${title}</b><br>중심: ${lat.toFixed(4)}, ${lng.toFixed(4)}`).openPopup();
             tacticalLayer.addLayer(strikeCircle);
 
-            document.getElementById('status-msg').textContent = `🎯 워게임 시나리오 전개 완료 (진격선/방어선/대피로 시각화)`;
+            document.getElementById('status-msg').textContent = `🎯 워게임 시나리오 전개 완료`;
         }
 
-        // CSV 안전 분할 파서
         function parseCSVLine(text) {
             let result = [], current = '', inQuotes = false;
             for (let i = 0; i < text.length; i++) {
@@ -269,7 +284,6 @@
             result.push(current.trim()); return result;
         }
 
-        // 파일명 자동 탐색 기능이 탑재된 CSV 로더 (오류 완전 방지)
         async function loadShelterCSV() {
             const possibleFilenames = ['Shelter.csv', 'shelter.csv', '민방위대피시설 (2).csv'];
             let csvText = null;
@@ -284,25 +298,19 @@
                             text = new TextDecoder('euc-kr').decode(buffer);
                         }
                         csvText = text;
-                        console.log(`성공적으로 파일 로드: ${filename}`);
                         break;
                     }
-                } catch(e) {
-                    // 다음 파일명 시도
-                }
+                } catch(e) {}
             }
 
             if (!csvText) {
-                document.getElementById('shelter-list-container').innerHTML = 
-                    `<div style="color: #ff5252; padding: 10px; text-align: center;">대피소 파일(Shelter.csv)을 찾지 못했습니다.<br>GitHub 경로를 확인해 주세요.</div>`;
-                document.getElementById('status-msg').textContent = "⚠️ 대피소 파일 로드 실패";
+                document.getElementById('shelter-list-container').innerHTML = `<div style="color: #ff5252; padding: 10px; text-align: center;">Shelter.csv 파일 로드 실패</div>`;
                 return;
             }
 
             parseCSV(csvText);
         }
 
-        // CSV 데이터 파싱 및 위경도 자동 탐색
         function parseCSV(csvText) {
             const lines = csvText.split(/\r\n|\n/);
             shelterDataList = [];
@@ -318,11 +326,9 @@
                     let facilityName = cols[5] ? cols[5].replace(/["']/g, "") : (cols[2] || "대피시설");
                     let type = cols[6] ? cols[6].replace(/["']/g, "") : "대피소";
                     
-                    // 컬럼 16, 17에서 위경도 파싱 시도
                     let lat = parseFloat(cols[16]);
                     let lng = parseFloat(cols[17]);
 
-                    // 만약 16, 17번이 안 맞을 경우 다른 컬럼에서 위경도(33~39, 124~132) 자동 탐색
                     if (isNaN(lat) || isNaN(lng)) {
                         for (let c = 0; c < cols.length; c++) {
                             let val = parseFloat(cols[c]);
@@ -339,18 +345,21 @@
                 }
             }
 
-            document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 대피소 로드 완료!`;
+            document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 전국 대피소 파싱 완료!`;
             renderShelterList(shelterDataList);
             renderMapMarkers(shelterDataList);
         }
 
+        // 마커 클러스터링을 사용하여 전국 18,800+개 전체 렌더링
         function renderMapMarkers(shelters) {
-            markersGroup.clearLayers();
-            shelters.slice(0, 500).forEach(s => {
+            markerClusterGroup.clearLayers();
+            const markers = [];
+            shelters.forEach(s => {
                 const m = L.marker([s.lat, s.lng]);
                 m.bindPopup(`<b>🛡️ ${s.facilityName}</b><br>${s.roadAddress || s.address}<br>유형: ${s.type}`);
-                markersGroup.addLayer(m);
+                markers.push(m);
             });
+            markerClusterGroup.addLayers(markers);
         }
 
         function renderShelterList(shelters) {
@@ -363,7 +372,7 @@
                 return;
             }
 
-            shelters.slice(0, 200).forEach(s => {
+            shelters.slice(0, 300).forEach(s => {
                 const item = document.createElement('div');
                 item.className = 'shelter-item';
                 item.innerHTML = `<div class="shelter-name">${s.facilityName}</div><div class="shelter-addr">${s.roadAddress || s.address}</div>`;
@@ -375,24 +384,11 @@
             });
         }
 
-        // 실시간 대피소 필터링 검색
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            const kw = e.target.value.toLowerCase().trim();
-            if (!kw) {
-                renderShelterList(shelterDataList);
-                renderMapMarkers(shelterDataList);
-                return;
+        // 실시간 대피소 입력 검색 (입력할 때마다 결과 bounds로 자동 이동)
+        document.getElementById('search-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('btn-global-search').click();
             }
-
-            const filtered = shelterDataList.filter(s => 
-                (s.facilityName && s.facilityName.toLowerCase().includes(kw)) || 
-                (s.address && s.address.toLowerCase().includes(kw)) || 
-                (s.roadAddress && s.roadAddress.toLowerCase().includes(kw))
-            );
-
-            renderShelterList(filtered);
-            renderMapMarkers(filtered);
-            document.getElementById('status-msg').textContent = `🔍 대피소 ${filtered.length}개 발견`;
         });
 
         window.onload = () => {
