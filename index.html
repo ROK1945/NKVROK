@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>전국 비상대비 시뮬레이터 (정제된 공공데이터 연동)</title>
+    <title>전국 비상대비 시뮬레이터</title>
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- PapaParse CSV 파서 -->
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
@@ -57,7 +55,7 @@
 
 <div id="app-wrapper">
     <header>
-        <h1>🚨 전국 비상대비 시뮬레이터 (정제 공공데이터 연동)</h1>
+        <h1>🚨 전국 비상대비 시뮬레이터 (작전선 및 대피소 통합)</h1>
     </header>
 
     <div id="main-container">
@@ -122,7 +120,7 @@
             <div class="hud-item"><span class="hud-label">공격 무기:</span><span class="hud-value" id="status">대기 중</span></div>
             <div class="hud-item"><span class="hud-label">탄착 도달:</span><span class="hud-value" id="eta-time" style="color:#f59e0b;">-</span></div>
             <div class="hud-item"><span class="hud-label">피해 반경:</span><span class="hud-value" id="impact-radius" style="color:#ef4444;">-</span></div>
-            <div class="hud-item"><span class="hud-label">최단 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">로딩 중...</span></div>
+            <div class="hud-item"><span class="hud-label">최단 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">대기 중</span></div>
             <div class="hud-item"><span class="hud-label">대피소 거리:</span><span class="hud-value" id="evac-dist" style="color:#4ade80;">-</span></div>
             <div class="hud-item"><span class="hud-label">도보 소요:</span><span class="hud-value" id="evac-time" style="color:#38bdf8;">-</span></div>
         </div>
@@ -147,7 +145,19 @@
         nuke_tactical: { name: "전술핵 폭발", radius: 5000, color: "#f59e0b", eta: "1분 00초" }
     };
 
-    let shelterDB = [];
+    // 주요 거점 대피소 하드코딩 내장 (CSV 외부 로딩 에러 원천 차단)
+    const shelterDB = [
+        { name: '성균관대학교 600주년기념관 지하층', lat: 37.5849, lng: 126.9969 },
+        { name: '올림픽기념 국민생활관 지하1층', lat: 37.5900, lng: 126.9989 },
+        { name: '교보생명빌딩 지하대피소', lat: 37.5705, lng: 126.9777 },
+        { name: '단국대학교 체육관 지하실', lat: 37.3218, lng: 127.1265 },
+        { name: '죽전역 수인분당선 대피시설', lat: 37.3250, lng: 127.1072 },
+        { name: '수지구청역 지하상가 대피소', lat: 37.3220, lng: 127.0975 },
+        { name: '포항 창포주공2단지 지하주차장', lat: 36.0682, lng: 129.3655 },
+        { name: '포항 두호동 주민센터 지하층', lat: 36.0590, lng: 129.3730 },
+        { name: '서울역 지하철 대피소', lat: 37.5547, lng: 126.9706 }
+    ];
+
     let shelterMarkersLayer = L.layerGroup();
     const shelterIcon = L.divIcon({
         className: 'shelter-icon',
@@ -195,44 +205,16 @@
         L.polyline(lineCoords, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map).bindPopup("<b>🔵 우리군(ROK/US) FEBA 주요 방어선</b>");
     });
 
-    // 정제된 CSV 파일명("민방위대피시설 (2).csv") 자동 파싱 연동
-    Papa.parse("민방위대피시설 (2).csv", {
-        download: true,
-        header: true,
-        encoding: "EUC-KR",
-        skipEmptyLines: true,
-        complete: function(results) {
-            if (results && results.data) {
-                results.data.forEach(row => {
-                    const lat = parseFloat(row['위도(EPSG4326)']);
-                    const lng = parseFloat(row['경도(EPSG4326)']);
-                    const name = row['시설명'] || row['도로명전체주소'] || '민방위 지하대피소';
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        shelterDB.push({ name: name, lat: lat, lng: lng });
-                    }
-                });
-                document.getElementById('evac-name').innerText = "대기 중";
-                renderVisibleShelters();
-            }
-        }
-    });
-
-    function renderVisibleShelters() {
+    // 대피소 마커 즉시 렌더링
+    function renderShelters() {
         shelterMarkersLayer.clearLayers();
-        if (shelterDB.length === 0) return;
-
-        const bounds = map.getBounds();
-        for (let i = 0; i < shelterDB.length; i++) {
-            const s = shelterDB[i];
-            if (bounds.contains([s.lat, s.lng])) {
-                L.marker([s.lat, s.lng], { icon: shelterIcon })
-                    .addTo(shelterMarkersLayer)
-                    .bindPopup(`<b>🏥 ${s.name}</b><br>구분: 지정 비상 민방위 대피시설`);
-            }
-        }
+        shelterDB.forEach(s => {
+            L.marker([s.lat, s.lng], { icon: shelterIcon })
+                .addTo(shelterMarkersLayer)
+                .bindPopup(`<b>🏥 ${s.name}</b><br>구분: 지정 비상 민방위 대피시설`);
+        });
     }
-
-    map.on('moveend', renderVisibleShelters);
+    renderShelters();
 
     let strikeMarkers = [], impactZones = [], enemyRouteLines = [], evacLines = [];
 
@@ -340,8 +322,6 @@
     }
 
     function findNearestShelter(lat, lng) {
-        if (shelterDB.length === 0) return { shelter: { name: "전국 대피소 탐색 중" }, distance: 0 };
-
         let nearest = shelterDB[0];
         let minDist = calcDistance(lat, lng, nearest.lat, nearest.lng);
 
@@ -361,7 +341,7 @@
 
         const nkFlagIcon = L.divIcon({
             className: 'nk-flag-container',
-            html: `<div class="nk-flag-marker">NK</div>`,
+            html: `<div class="nk-flag-marker">⭐</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
         });
