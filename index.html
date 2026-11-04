@@ -3,28 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>전국 비상대비 시뮬레이터 (전국 18,000개 대피소 실시간 연동)</title>
+    <title>전국 비상대비 시뮬레이터</title>
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- CSV 파싱 전용 라이브러리 (PapaParse) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- PapaParse CSV 파서 (헤더 선언) -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
-        
         #app-wrapper { display: flex; flex-direction: column; width: 100vw; height: 100vh; }
-        
         header { height: 40px; background: #1e293b; padding: 0 10px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 1001; }
         header h1 { font-size: 0.8rem; font-weight: 700; color: #ef4444; margin: 0; }
-        
-        #main-container { position: relative; flex: 1; width: 100%; height: calc(100vh - 145px); min-height: 200px; background: #020617; }
+        #main-container { position: relative; flex: 1; width: 100%; min-height: 200px; background: #020617; }
         #map { width: 100%; height: 100%; position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; background: #0f172a; }
         
-        /* 컨트롤 패널 */
         #control-panel { position: absolute; top: 8px; left: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px 10px; border-radius: 8px; width: 245px; font-size: 0.72rem; max-height: calc(100% - 16px); overflow-y: auto; }
         #control-panel label { display: block; color: #94a3b8; margin-top: 5px; margin-bottom: 2px; font-weight: 600; }
-        
         .search-box { display: flex; gap: 4px; margin-bottom: 4px; }
         .search-box input { flex: 1; padding: 5px 8px; background: #1e293b; border: 1px solid #475569; color: #ffffff !important; border-radius: 4px; font-size: 0.72rem; }
         .search-box button { width: 50px; background: #2563eb; color: #ffffff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer; }
@@ -36,10 +31,8 @@
 
         #search-select-modal { display: none; position: absolute; top: 50px; left: 8px; z-index: 2000; background: #1e293b; border: 1px solid #3b82f6; padding: 10px; border-radius: 8px; width: 240px; font-size: 0.72rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
         #search-select-modal h4 { color: #38bdf8; margin-bottom: 6px; font-size: 0.75rem; }
-        .location-item { background: #0f172a; border: 1px solid #334155; padding: 6px; margin-bottom: 4px; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
-        .location-item:hover { background: #1d4ed8; color: #fff; }
+        .location-item { background: #0f172a; border: 1px solid #334155; padding: 6px; margin-bottom: 4px; border-radius: 4px; cursor: pointer; }
 
-        /* HUD */
         #hud { position: absolute; top: 8px; right: 8px; z-index: 1000; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; backdrop-filter: blur(8px); padding: 8px 10px; border-radius: 8px; width: 180px; font-size: 0.68rem; pointer-events: none; }
         #hud h2 { font-size: 0.75rem; color: #38bdf8; margin-bottom: 4px; border-bottom: 1px solid #334155; padding-bottom: 2px; display: flex; justify-content: space-between; }
         .hud-item { margin-bottom: 3px; display: flex; justify-content: space-between; }
@@ -51,33 +44,20 @@
         .line-red { width: 14px; height: 3px; background: #ef4444; border-top: 1px dashed #ef4444; }
         .line-blue { width: 14px; height: 3px; background: #3b82f6; }
 
-        /* 하단 수칙 */
         #guide-panel { height: 105px; background: #1e293b; border-top: 2px solid #ef4444; padding: 6px 10px; overflow-y: auto; flex-shrink: 0; z-index: 1001; font-size: 0.68rem; }
         #guide-panel h3 { color: #f59e0b; font-size: 0.72rem; margin-bottom: 2px; }
         .guide-step { margin-bottom: 2px; color: #cbd5e1; line-height: 1.2; }
         .highlight { color: #ef4444; font-weight: bold; }
 
-        .nk-flag-marker {
-            width: 30px; height: 30px;
-            background: rgba(220, 38, 38, 0.9);
-            border: 2px solid #ffffff;
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 15px #ef4444;
-            animation: pulse-flag 1.2s infinite alternate;
-            font-size: 15px;
-        }
-        @keyframes pulse-flag {
-            0% { transform: scale(0.9); box-shadow: 0 0 8px #ef4444; }
-            100% { transform: scale(1.3); box-shadow: 0 0 22px #f59e0b; }
-        }
+        .nk-flag-marker { width: 30px; height: 30px; background: rgba(220, 38, 38, 0.9); border: 2px solid #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #ef4444; animation: pulse-flag 1.2s infinite alternate; font-size: 15px; }
+        @keyframes pulse-flag { 0% { transform: scale(0.9); } 100% { transform: scale(1.3); } }
     </style>
 </head>
 <body>
 
 <div id="app-wrapper">
     <header>
-        <h1>🚨 전국 비상대비 시뮬레이터 (전국 18,000개 대피소 실시간 연동)</h1>
+        <h1>🚨 전국 비상대비 시뮬레이터 (공공데이터 연동)</h1>
     </header>
 
     <div id="main-container">
@@ -142,7 +122,7 @@
             <div class="hud-item"><span class="hud-label">공격 무기:</span><span class="hud-value" id="status">대기 중</span></div>
             <div class="hud-item"><span class="hud-label">탄착 도달:</span><span class="hud-value" id="eta-time" style="color:#f59e0b;">-</span></div>
             <div class="hud-item"><span class="hud-label">피해 반경:</span><span class="hud-value" id="impact-radius" style="color:#ef4444;">-</span></div>
-            <div class="hud-item"><span class="hud-label">최단 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">로딩 중...</span></div>
+            <div class="hud-item"><span class="hud-label">최단 대피소:</span><span class="hud-value" id="evac-name" style="color:#4ade80;">대기 중</span></div>
             <div class="hud-item"><span class="hud-label">대피소 거리:</span><span class="hud-value" id="evac-dist" style="color:#4ade80;">-</span></div>
             <div class="hud-item"><span class="hud-label">도보 소요:</span><span class="hud-value" id="evac-time" style="color:#38bdf8;">-</span></div>
         </div>
@@ -150,9 +130,9 @@
 
     <div id="guide-panel">
         <h3>🔥 무기 유형별 비상 행동수칙</h3>
-        <div class="guide-step">1. <span class="highlight">재래식 포탄/박격포(빨강):</span> 지하 2층 이하 콘크리트 대피소(지하철역, 아파트 지하주차장)로 즉시 피난.</div>
-        <div class="guide-step">2. <span class="highlight">생화학(초록):</span> 가스는 지면에 깔리므로 높은 곳이나 밀폐 구역으로 이동 후 호흡기 보호.</div>
-        <div class="guide-step">3. <span class="highlight">전술핵(주황):</span> 섬광 감지 즉시 폭발 반대 방향으로 엎드려 눈과 귀를 막으세요.</div>
+        <div class="guide-step">1. <span class="highlight">재래식 포탄/박격포(빨강):</span> 지하 2층 이하 콘크리트 대피소로 즉시 피난.</div>
+        <div class="guide-step">2. <span class="highlight">생화학(초록):</span> 가스는 지면에 깔리므로 높은 곳이나 밀폐 구역으로 이동.</div>
+        <div class="guide-step">3. <span class="highlight">전술핵(주황):</span> 섬광 감지 즉시 폭발 반대 방향으로 엎드리기.</div>
     </div>
 </div>
 
@@ -167,9 +147,15 @@
         nuke_tactical: { name: "전술핵 폭발", radius: 5000, color: "#f59e0b", eta: "1분 00초" }
     };
 
-    let shelterDB = [];
-    let shelterMarkersLayer = L.layerGroup();
+    let shelterDB = [
+        { name: "성균관대학교 600주년기념관 지하층", lat: 37.5849, lng: 126.9969 },
+        { name: "교보생명빌딩 지하대피소", lat: 37.5705, lng: 126.9777 },
+        { name: "단국대학교 체육관 지하실", lat: 37.3218, lng: 127.1265 },
+        { name: "죽전역 수인분당선 지하대피소", lat: 37.3250, lng: 127.1072 },
+        { name: "포항 창포주공2단지 지하주차장", lat: 36.0682, lng: 129.3655 }
+    ];
 
+    let shelterMarkersLayer = L.layerGroup();
     const shelterIcon = L.divIcon({
         className: 'shelter-icon',
         html: '<div style="font-size:16px; background:#1e293b; border:2px solid #38bdf8; border-radius:50%; width:24px; height:24px; text-align:center; line-height:20px;">🏥</div>',
@@ -216,31 +202,28 @@
         L.polyline(lineCoords, { color: '#3b82f6', weight: 4, opacity: 0.8 }).addTo(map).bindPopup("<b>🔵 우리군(ROK/US) FEBA 주요 방어선</b>");
     });
 
-    // 📁 민방위대피시설.csv 파일 자동 파싱
-    Papa.parse("민방위대피시설.csv", {
-        download: true,
-        header: true,
-        encoding: "EUC-KR",
-        skipEmptyLines: true,
-        complete: function(results) {
-            results.data.forEach(row => {
-                const lat = parseFloat(row['위도(EPSG4326)']);
-                const lng = parseFloat(row['경도(EPSG4326)']);
-                const name = row['시설명'] || row['도로명전체주소'] || '민방위 지하대피소';
-
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    shelterDB.push({ name: name, lat: lat, lng: lng });
+    // 안전한 PapaParse CSV 로드
+    if (typeof Papa !== 'undefined') {
+        Papa.parse("민방위대피시설.csv", {
+            download: true,
+            header: true,
+            encoding: "EUC-KR",
+            skipEmptyLines: true,
+            complete: function(results) {
+                if (results && results.data) {
+                    results.data.forEach(row => {
+                        const lat = parseFloat(row['위도(EPSG4326)']);
+                        const lng = parseFloat(row['경도(EPSG4326)']);
+                        const name = row['시설명'] || row['도로명전체주소'] || '민방위 지하대피소';
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            shelterDB.push({ name: name, lat: lat, lng: lng });
+                        }
+                    });
+                    renderVisibleShelters();
                 }
-            });
-            console.log(`성공적으로 ${shelterDB.length}개 민방위 대피소 데이터를 불러왔습니다.`);
-            document.getElementById('evac-name').innerText = "대기 중";
-            renderVisibleShelters();
-        },
-        error: function(err) {
-            console.error("CSV 파일 로드 중 오류 발생:", err);
-            document.getElementById('evac-name').innerText = "대기 중";
-        }
-    });
+            }
+        });
+    }
 
     function renderVisibleShelters() {
         shelterMarkersLayer.clearLayers();
@@ -263,10 +246,7 @@
 
     map.on('moveend', renderVisibleShelters);
 
-    let strikeMarkers = [];
-    let impactZones = [];
-    let enemyRouteLines = [];
-    let evacLines = [];
+    let strikeMarkers = [], impactZones = [], enemyRouteLines = [], evacLines = [];
 
     document.getElementById('scenario-select').addEventListener('change', updateScenarioSettings);
     document.getElementById('phase-select').addEventListener('change', updateScenarioSettings);
@@ -357,30 +337,22 @@
                     alert(`'${query}' 위치를 찾지 못했습니다.`);
                 }
             })
-            .catch(() => {
-                alert("검색 중 오류가 발생했습니다.");
-            });
+            .catch(() => { alert("검색 중 오류가 발생했습니다."); });
     }
 
     document.getElementById('search-btn').addEventListener('click', searchLocation);
-    document.getElementById('search-input').addEventListener('keypress', function(e) {
-        if(e.key === 'Enter') searchLocation();
-    });
+    document.getElementById('search-input').addEventListener('keypress', function(e) { if(e.key === 'Enter') searchLocation(); });
 
     function calcDistance(lat1, lon1, lat2, lon2) {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
     function findNearestShelter(lat, lng) {
-        if (shelterDB.length === 0) {
-            return { shelter: { name: "전국 대피소 로드 중..." }, distance: 0 };
-        }
+        if (shelterDB.length === 0) return { shelter: { name: "전국 대피소 탐색 중" }, distance: 0 };
 
         let nearest = shelterDB[0];
         let minDist = calcDistance(lat, lng, nearest.lat, nearest.lng);
@@ -406,27 +378,13 @@
             iconAnchor: [15, 15]
         });
 
-        const sMarker = L.marker([lat, lng], { icon: nkFlagIcon })
-            .addTo(map)
-            .bindPopup(`<b>🚨 북한군 발포/타격지점</b><br>공격 무기: ${weapon.name}`)
-            .openPopup();
+        const sMarker = L.marker([lat, lng], { icon: nkFlagIcon }).addTo(map).bindPopup(`<b>🚨 북한군 발포/타격지점</b><br>공격 무기: ${weapon.name}`).openPopup();
         strikeMarkers.push(sMarker);
 
-        const iZone = L.circle([lat, lng], {
-            color: weapon.color,
-            fillColor: weapon.color,
-            fillOpacity: 0.35,
-            radius: weapon.radius
-        }).addTo(map);
+        const iZone = L.circle([lat, lng], { color: weapon.color, fillColor: weapon.color, fillOpacity: 0.35, radius: weapon.radius }).addTo(map);
         impactZones.push(iZone);
 
-        const startLat = lat + 0.08;
-        const startLng = lng - 0.04;
-        const rLine = L.polyline([[startLat, startLng], [lat, lng]], {
-            color: '#ef4444',
-            weight: 4,
-            dashArray: '8, 8'
-        }).addTo(map);
+        const rLine = L.polyline([[lat + 0.08, lng - 0.04], [lat, lng]], { color: '#ef4444', weight: 4, dashArray: '8, 8' }).addTo(map);
         enemyRouteLines.push(rLine);
 
         const result = findNearestShelter(lat, lng);
@@ -435,10 +393,7 @@
         const walkMinutes = Math.round((distKm / 4) * 60);
 
         if (shelter.lat && shelter.lng) {
-            const eLine = L.polyline([[lat, lng], [shelter.lat, shelter.lng]], {
-                color: '#22c55e',
-                weight: 5
-            }).addTo(map);
+            const eLine = L.polyline([[lat, lng], [shelter.lat, shelter.lng]], { color: '#22c55e', weight: 5 }).addTo(map);
             evacLines.push(eLine);
         }
 
@@ -452,14 +407,8 @@
         document.getElementById('evac-time').innerText = `약 ${walkMinutes} 분`;
     }
 
-    map.on('click', function(e) {
-        executeStrike(e.latlng.lat, e.latlng.lng);
-    });
-
-    document.getElementById('btn-auto-strike').addEventListener('click', function() {
-        const center = map.getCenter();
-        executeStrike(center.lat, center.lng);
-    });
+    map.on('click', function(e) { executeStrike(e.latlng.lat, e.latlng.lng); });
+    document.getElementById('btn-auto-strike').addEventListener('click', function() { const center = map.getCenter(); executeStrike(center.lat, center.lng); });
 
     document.getElementById('btn-clear-map').addEventListener('click', function() {
         strikeMarkers.forEach(m => map.removeLayer(m));
@@ -467,10 +416,7 @@
         enemyRouteLines.forEach(r => map.removeLayer(r));
         evacLines.forEach(e => map.removeLayer(e));
 
-        strikeMarkers = [];
-        impactZones = [];
-        enemyRouteLines = [];
-        evacLines = [];
+        strikeMarkers = []; impactZones = []; enemyRouteLines = []; evacLines = [];
 
         document.getElementById('status').innerText = "대기 중";
         document.getElementById('status').style.color = "#f1f5f9";
