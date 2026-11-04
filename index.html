@@ -6,11 +6,9 @@
     <title>대한민국 민방위 및 비상 대피 시뮬레이터 (NKVKOK)</title>
     
     <style>
-        /* 기본 레이아웃 및 다크 테마 설정 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #121212; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* 좌측 컨트롤 및 정보 패널 */
         #sidebar { width: 380px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 10; }
         h1 { font-size: 18px; margin-bottom: 15px; color: #ff5252; border-bottom: 2px solid #ff5252; padding-bottom: 8px; }
         
@@ -18,53 +16,42 @@
         label { display: block; font-size: 13px; margin-bottom: 5px; color: #aaa; }
         select, input, button { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 14px; }
         
-        /* 대피소 검색 및 리스트 영역 */
         #shelter-list-container { flex-grow: 1; overflow-y: auto; margin-top: 10px; border: 1px solid #333; background: #181818; border-radius: 4px; padding: 10px; }
-        .shelter-item { padding: 8px; border-bottom: 1px solid #2a2a2a; font-size: 12px; cursor: pointer; }
+        .shelter-item { padding: 10px; border-bottom: 1px solid #2a2a2a; font-size: 12px; cursor: pointer; }
         .shelter-item:hover { background: #2c2c2c; }
-        .shelter-name { font-weight: bold; color: #ff8a80; }
-        .shelter-addr { color: #888; font-size: 11px; }
+        .shelter-name { font-weight: bold; color: #ff8a80; font-size: 13px; margin-bottom: 3px; }
+        .shelter-addr { color: #aaa; font-size: 11px; }
 
-        /* 우측 가상 레이더/시뮬레이션 맵 영역 (외부 라이브러리 불필요) */
         #map-container { flex-grow: 1; height: 100%; position: relative; background: #0a0a0c; overflow: hidden; display: flex; justify-content: center; align-items: center; }
         
-        /* 전술 레이더 격자 배경 */
         .radar-grid {
             position: absolute; width: 200%; height: 200%;
             background-image: 
-                linear-gradient(rgba(0, 255, 128, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 128, 0.05) 1px, transparent 1px);
-            background-size: 40px 40px;
-            animation: radar-move 20s linear infinite;
-        }
-        @keyframes radar-move {
-            0% { transform: translate(0, 0); }
-            100% { transform: translate(40px, 40px); }
+                linear-gradient(rgba(0, 255, 128, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 128, 0.08) 1px, transparent 1px);
+            background-size: 50px 50px;
         }
 
-        /* 맵 내부 대피소 마커 */
         .map-marker {
-            position: absolute; width: 12px; height: 12px; background: #00ffcc; border-radius: 50%;
-            box-shadow: 0 0 10px #00ffcc; cursor: pointer; transform: translate(-50%, -50%);
+            position: absolute; width: 14px; height: 14px; background: #00ffcc; border-radius: 50%;
+            box-shadow: 0 0 12px #00ffcc; cursor: pointer; transform: translate(-50%, -50%);
             transition: transform 0.2s, background 0.2s;
         }
-        .map-marker:hover { background: #ff5252; transform: translate(-50%, -50%) scale(1.5); z-index: 100; }
+        .map-marker:hover { background: #ff5252; transform: translate(-50%, -50%) scale(1.6); z-index: 100; }
         
-        /* 마커 툴팁 팝업 */
         #map-tooltip {
-            position: absolute; bottom: 20px; right: 20px; background: rgba(20, 20, 25, 0.9);
+            position: absolute; bottom: 25px; right: 25px; background: rgba(20, 20, 25, 0.95);
             border: 1px solid #00ffcc; padding: 15px; border-radius: 6px; font-size: 13px;
-            max-width: 300px; z-index: 100; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 320px; z-index: 100; display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.7);
         }
-        #map-tooltip h3 { color: #00ffcc; margin-bottom: 5px; font-size: 14px; }
+        #map-tooltip h3 { color: #00ffcc; margin-bottom: 8px; font-size: 14px; }
+        #map-tooltip p { margin-bottom: 4px; color: #ccc; }
         
-        /* 상태 알림창 */
-        #status-msg { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 4px; font-size: 12px; border-left: 3px solid #ff5252; z-index: 10; }
+        #status-msg { position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 4px; font-size: 12px; border-left: 3px solid #00ffcc; z-index: 10; color: #00ffcc; }
     </style>
 </head>
 <body>
 
-    <!-- 좌측 컨트롤 패널 -->
     <div id="sidebar">
         <h1>🛡️ 대한민국 비상대피 시뮬레이터</h1>
         
@@ -80,57 +67,66 @@
 
         <div class="control-group">
             <label for="search-shelter">대피소 검색</label>
-            <input type="text" id="search-shelter" placeholder="지역 또는 시설명 입력 (예: 서울, 성균관대)">
+            <input type="text" id="search-shelter" placeholder="시설명 또는 지역 입력 (예: 성균관대)">
         </div>
 
         <label>근린 대피소 목록 (<span id="shelter-count">0</span>개)</label>
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #666; padding: 20px;">Shelter.csv 로딩 중...</div>
+            <div style="text-align: center; color: #666; padding: 20px;">데이터 로딩 중...</div>
         </div>
     </div>
 
-    <!-- 우측 전술 맵 영역 -->
     <div id="map-container">
         <div class="radar-grid"></div>
-        <div id="status-msg">전술 지도 시스템 활성화됨 (Shelter.csv 연동)</div>
+        <div id="status-msg">전술 지도 시스템 가동 중</div>
         <div id="map-tooltip"></div>
     </div>
 
     <script>
         let shelterDataList = [];
 
-        // 1. Shelter.csv 비동기 로드
         async function loadShelterCSV() {
             try {
+                // 한글 깨짐 방지를 위해 EUC-KR(또는 CP949)로 인코딩 읽기 시도 후 안되면 기본 처리
                 const response = await fetch('Shelter.csv');
                 if (!response.ok) throw new Error(`HTTP 에러: ${response.status}`);
                 
-                const csvText = await response.text();
+                const buffer = await response.arrayBuffer();
+                let decoder = new TextDecoder('utf-8');
+                let csvText = decoder.decode(buffer);
+                
+                // 만약 한글이 깨진다면 euc-kr로 디코딩 재시도
+                if (csvText.includes('')) {
+                    decoder = new TextDecoder('euc-kr');
+                    csvText = decoder.decode(buffer);
+                }
+
                 parseCSV(csvText);
             } catch (error) {
-                console.error("Shelter.csv 파일 로드 실패:", error);
+                console.error("파일 로드 실패:", error);
                 document.getElementById('shelter-list-container').innerHTML = 
-                    `<div style="color: #ff5252; padding: 10px; text-align: center;">파일을 불러오지 못했습니다.<br>파일명(Shelter.csv)을 확인해주세요.</div>`;
-                document.getElementById('status-msg').textContent = "⚠️ 대피소 데이터 로드 실패 (파일 경로 확인 필요)";
+                    `<div style="color: #ff5252; padding: 10px; text-align: center;">파일을 불러오지 못했습니다.<br>Shelter.csv 파일을 확인해주세요.</div>`;
+                document.getElementById('status-msg').textContent = "⚠️ 대피소 데이터 로드 실패";
             }
         }
 
-        // 2. CSV 파싱
         function parseCSV(csvText) {
-            const lines = csvText.split('\n');
+            const lines = csvText.split(/\r\n|\n/);
             shelterDataList = [];
 
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
+                
+                // 간단한 쉼표 파싱 (따옴표 고려)
                 const columns = line.split(',');
 
                 if (columns.length >= 7) {
-                    const address = columns[0].trim();
-                    const roadAddress = columns[1].trim();
-                    const facilityName = columns[2].trim();
-                    const facilityType = columns[3].trim();
-                    const locationDesc = columns[4].trim();
+                    const address = columns[0].replace(/["']/g, "").trim();
+                    const roadAddress = columns[1].replace(/["']/g, "").trim();
+                    const facilityName = columns[2].replace(/["']/g, "").trim();
+                    const facilityType = columns[3].replace(/["']/g, "").trim();
+                    const locationDesc = columns[4].replace(/["']/g, "").trim();
                     const lat = parseFloat(columns[5]);
                     const lng = parseFloat(columns[6]);
 
@@ -140,40 +136,32 @@
                 }
             }
 
-            console.log(`총 ${shelterDataList.length}개 대피소 파싱 완료.`);
             document.getElementById('status-msg').textContent = `총 ${shelterDataList.length}개 대피소 데이터 로드 완료`;
             renderShelterList(shelterDataList);
             renderMapMarkers(shelterDataList);
         }
 
-        // 3. 우측 지도 화면에 마커 뿌리기
         function renderMapMarkers(shelters) {
             const mapContainer = document.getElementById('map-container');
-            
-            // 기존 마커 제거
             document.querySelectorAll('.map-marker').forEach(m => m.remove());
 
             if (shelters.length === 0) return;
 
-            // 위도/경도 최소/최대값 계산하여 화면 비율에 맞게 좌표 스케일링
             let minLat = Math.min(...shelters.map(s => s.lat));
             let maxLat = Math.max(...shelters.map(s => s.lat));
             let minLng = Math.min(...shelters.map(s => s.lng));
             let maxLng = Math.max(...shelters.map(s => s.lng));
 
-            // 상위 300개만 화면에 표시 (과부하 방지)
-            shelters.slice(0, 300).forEach(shelter => {
+            shelters.forEach(shelter => {
                 const marker = document.createElement('div');
                 marker.className = 'map-marker';
 
-                // 위경도를 백분율 좌표로 변환 (컨테이너 내부 배치)
                 const x = ((shelter.lng - minLng) / (maxLng - minLng || 1)) * 80 + 10;
                 const y = 90 - ((shelter.lat - minLat) / (maxLat - minLat || 1)) * 80;
 
                 marker.style.left = `${x}%`;
                 marker.style.top = `${y}%`;
 
-                // 마커 클릭 또는 오버시 툴팁 표시
                 marker.addEventListener('click', () => {
                     showTooltip(shelter);
                 });
@@ -182,18 +170,17 @@
             });
         }
 
-        // 4. 툴팁 표시 함수
         function showTooltip(shelter) {
             const tooltip = document.getElementById('map-tooltip');
             tooltip.style.display = 'block';
             tooltip.innerHTML = `
                 <h3>🛡️ ${shelter.facilityName}</h3>
-                <p><b>주소:</b> ${shelter.roadAddress || shelter.address}</p>
-                <p><b>유형:</b> ${shelter.facilityType} (${shelter.locationDesc})</p>
+                <p><b>도로명주소:</b> ${shelter.roadAddress || '정보 없음'}</p>
+                <p><b>지번주소:</b> ${shelter.address}</p>
+                <p><b>시설구분:</b> ${shelter.facilityType} (${shelter.locationDesc})</p>
             `;
         }
 
-        // 5. 좌측 패널 리스트 렌더링
         function renderShelterList(shelters) {
             const container = document.getElementById('shelter-list-container');
             document.getElementById('shelter-count').textContent = shelters.length;
@@ -204,7 +191,7 @@
                 return;
             }
 
-            shelters.slice(0, 100).forEach(shelter => {
+            shelters.forEach(shelter => {
                 const item = document.createElement('div');
                 item.className = 'shelter-item';
                 item.innerHTML = `
@@ -220,7 +207,6 @@
             });
         }
 
-        // 6. 검색 필터 기능
         document.getElementById('search-shelter').addEventListener('input', (e) => {
             const keyword = e.target.value.toLowerCase();
             const filtered = shelterDataList.filter(s => 
@@ -232,7 +218,6 @@
             renderMapMarkers(filtered);
         });
 
-        // 초기화 실행
         window.addEventListener('DOMContentLoaded', () => {
             loadShelterCSV();
         });
