@@ -12,19 +12,22 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #121212; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
         
-        #sidebar { width: 380px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 1000; }
+        /* 좌측 컨트롤 패널 */
+        #sidebar { width: 400px; background: #1e1e1e; border-right: 1px solid #333; display: flex; flex-direction: column; padding: 20px; z-index: 1000; overflow-y: auto; }
         h1 { font-size: 18px; margin-bottom: 15px; color: #ff5252; border-bottom: 2px solid #ff5252; padding-bottom: 8px; }
         
         .control-group { margin-bottom: 15px; }
-        label { display: block; font-size: 13px; margin-bottom: 5px; color: #aaa; }
+        label { display: block; font-size: 13px; margin-bottom: 5px; color: #aaa; font-weight: bold; }
         select, input { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; font-size: 14px; }
         
-        #shelter-list-container { flex-grow: 1; overflow-y: auto; margin-top: 10px; border: 1px solid #333; background: #181818; border-radius: 4px; padding: 10px; }
-        .shelter-item { padding: 10px; border-bottom: 1px solid #2a2a2a; font-size: 12px; cursor: pointer; }
+        /* 대피소 목록 영역 */
+        #shelter-list-container { max-height: 250px; overflow-y: auto; margin-top: 5px; border: 1px solid #333; background: #181818; border-radius: 4px; padding: 5px; }
+        .shelter-item { padding: 8px; border-bottom: 1px solid #2a2a2a; font-size: 12px; cursor: pointer; }
         .shelter-item:hover { background: #2c2c2c; }
-        .shelter-name { font-weight: bold; color: #ff8a80; font-size: 13px; margin-bottom: 3px; }
+        .shelter-name { font-weight: bold; color: #ff8a80; font-size: 12px; margin-bottom: 2px; }
         .shelter-addr { color: #aaa; font-size: 11px; }
 
+        /* 우측 실제 지도 영역 */
         #map { flex-grow: 1; height: 100%; z-index: 1; }
         
         #status-msg { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.85); padding: 8px 15px; border-radius: 4px; font-size: 12px; border-left: 3px solid #00ffcc; z-index: 2000; color: #00ffcc; }
@@ -35,8 +38,9 @@
     <div id="sidebar">
         <h1>🛡️ 대한민국 비상대피 시뮬레이터</h1>
         
+        <!-- 위협 단계 설정 -->
         <div class="control-group">
-            <label for="threat-level">위협 단계 설정</label>
+            <label for="threat-level">위협 단계 (DEFCON)</label>
             <select id="threat-level">
                 <option value="4">DEFCON 4 (평시 경계)</option>
                 <option value="3">DEFCON 3 (국지전 징후)</option>
@@ -45,6 +49,28 @@
             </select>
         </div>
 
+        <!-- 북한 무기 및 타격 시나리오 선택 -->
+        <div class="control-group">
+            <label for="weapon-type">북한 위협 무기 체계 선택</label>
+            <select id="weapon-type">
+                <option value="nuke">핵폭탄 (150kt 단거리/중거리 탄도미사일)</option>
+                <option value="artillery" selected>장사정포 및 300mm 방사포 (수도권 타격)</option>
+                <option value="missile">화성-17/18형 ICBM 및 극초음속 미사일</option>
+                <option value="emp">EMP탄 (고고도 전자기파 공격)</option>
+            </select>
+        </div>
+
+        <!-- 지도 모드 선택 (브이월드 연동) -->
+        <div class="control-group">
+            <label for="map-mode">전술 지도 모드 선택</label>
+            <select id="map-mode">
+                <option value="satellite" selected>브이월드 위성 항공 샷</option>
+                <option value="gray">브이월드 백지도 (회색조)</option>
+                <option value="midnight">브이월드 야간 맵</option>
+            </select>
+        </div>
+
+        <!-- 대피소 검색 -->
         <div class="control-group">
             <label for="search-shelter">대피소 검색 (지역/시설명)</label>
             <input type="text" id="search-shelter" placeholder="예: 종로구, 성균관대, 부산">
@@ -52,7 +78,7 @@
 
         <label>근린 대피소 목록 (<span id="shelter-count">0</span>개)</label>
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #666; padding: 20px;">전국 대피소 데이터 로딩 중...</div>
+            <div style="text-align: center; color: #666; padding: 15px;">전국 대피소 데이터 로딩 중...</div>
         </div>
     </div>
 
@@ -63,23 +89,65 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        const VWORLD_API_KEY = "AB8056F3-8810-4503-9544-FA9F94BB07C1";
         let map;
         let shelterDataList = [];
         let markersGroup = L.layerGroup();
+        let tileLayers = {};
 
         function initMap() {
-            map = L.map('map').setView([37.5665, 126.9780], 11);
+            // 초기 위치: 서울 중심
+            map = L.map('map', {
+                maxZoom: 19,
+                minZoom: 6
+            }).setView([37.5665, 126.9780], 11);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap & CARTO',
-                subdomains: 'abcd',
+            // 브이월드 타일 레이어 설정 (제공해주신 API 키 적용)
+            // 1. 위성 지도
+            tileLayers.satellite = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/Satellite/{z}/{y}/{x}.jpeg`, {
+                attribution: '&copy; V-World Satellite',
                 maxZoom: 19
-            }).addTo(map);
+            });
 
+            // 2. 백지도 (Gray)
+            tileLayers.gray = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/gray/{z}/{y}/{x}.png`, {
+                attribution: '&copy; V-World Gray',
+                maxZoom: 19
+            });
+
+            // 3. 야간 지도 (Midnight)
+            tileLayers.midnight = L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_API_KEY}/midnight/{z}/{y}/{x}.png`, {
+                attribution: '&copy; V-World Midnight',
+                maxZoom: 19
+            });
+
+            // 기본값으로 위성 지도 적용
+            tileLayers.satellite.addTo(map);
             markersGroup.addTo(map);
         }
 
-        // CSV 라인을 따옴표와 쉼표를 고려하여 안전하게 파싱하는 정규식 함수
+        // 지도 모드 변경 이벤트
+        document.getElementById('map-mode').addEventListener('change', (e) => {
+            const mode = e.target.value;
+            Object.values(tileLayers).forEach(layer => map.removeLayer(layer));
+            if (tileLayers[mode]) {
+                tileLayers[mode].addTo(map);
+            }
+        });
+
+        // 무기 선택 변경 이벤트 연동
+        document.getElementById('weapon-type').addEventListener('change', (e) => {
+            const weapon = e.target.value;
+            const msg = {
+                'nuke': '⚠️ 경고: 핵폭탄 타격 시나리오 활성화 (최상위 방호 시설 대피 필요)',
+                'artillery': '⚠️ 경고: 수도권 장사정포/방사포 포격 징후 감지 (지하 대피소 즉시 대피)',
+                'missile': '⚠️ 경고: 전략 미사일 발사 징후 감지 (방공 경보 발령)',
+                'emp': '⚠️ 경고: EMP탄 공중 폭발 대비 전자기기 차단 태세'
+            };
+            document.getElementById('status-msg').textContent = msg[weapon] || "전술 상황 대기 중";
+        });
+
+        // CSV 안전 파싱 함수 (주소 내 쉼표 오류 방지)
         function parseCSVLine(text) {
             let result = [];
             let current = '';
@@ -100,6 +168,7 @@
             return result;
         }
 
+        // Shelter.csv 파일 비동기 로드 및 인코딩 자동 감지
         async function loadShelterCSV() {
             try {
                 const response = await fetch('Shelter.csv');
@@ -119,7 +188,7 @@
                 console.error("파일 로드 실패:", error);
                 document.getElementById('shelter-list-container').innerHTML = 
                     `<div style="color: #ff5252; padding: 10px; text-align: center;">파일을 불러오지 못했습니다.<br>Shelter.csv 파일을 확인해주세요.</div>`;
-                document.getElementById('status-msg').textContent = "⚠️ 데이터 로드 실패";
+                document.getElementById('status-msg').textContent = "⚠️ 대피소 데이터 로드 실패";
             }
         }
 
@@ -133,18 +202,14 @@
                 
                 const columns = parseCSVLine(line);
 
-                // 업로드하신 CSV 구조: 
-                // [0] 소재지전체주소, [1] 도로명전체주소, [2] 시설명, [3] 시설구분, [4] 시설위치, [5] 위도(EPSG4326 또는 위도도), [6] 경도(EPSG4326)
-                // 만약 EPSG4326 위경도 컬럼이 뒤쪽에 있다면 인덱스 확인 필요. 본문 구조상 위경도 컬럼 위치 확인:
-                // 표준 엑셀 구조 기준: 위도(EPSG4326)와 경도(EPSG4326) 컬럼 위치 탐색
                 if (columns.length >= 18) {
-                    const address = columns[2].replace(/^["']|["']$/g, "");     // 소재지전체주소
-                    const roadAddress = columns[3].replace(/^["']|["']$/g, ""); // 도로명전체주소
-                    const facilityName = columns[5].replace(/^["']|["']$/g, "");// 시설명
-                    const facilityType = columns[6].replace(/^["']|["']$/g, "");// 시설구분
-                    const locationDesc = columns[7].replace(/^["']|["']$/g, "");// 시설위치
-                    const lat = parseFloat(columns[12]); // 위도(EPSG4326)
-                    const lng = parseFloat(columns[13]); // 경도(EPSG4326)
+                    const address = columns[2].replace(/^["']|["']$/g, "");
+                    const roadAddress = columns[3].replace(/^["']|["']$/g, "");
+                    const facilityName = columns[5].replace(/^["']|["']$/g, "");
+                    const facilityType = columns[6].replace(/^["']|["']$/g, "");
+                    const locationDesc = columns[7].replace(/^["']|["']$/g, "");
+                    const lat = parseFloat(columns[12]);
+                    const lng = parseFloat(columns[13]);
 
                     if (!isNaN(lat) && !isNaN(lng)) {
                         shelterDataList.push({ address, roadAddress, facilityName, facilityType, locationDesc, lat, lng });
@@ -157,11 +222,10 @@
             renderMapMarkers(shelterDataList);
         }
 
-        // 성능 최적화 및 렉 방지를 위해 지도에는 처음 500개만 마커 표시 (검색 시 필터링됨)
         function renderMapMarkers(shelters) {
             markersGroup.clearLayers();
+            const renderTarget = shelters.slice(0, 500); // 렌더링 성능 최적화
 
-            const renderTarget = shelters.slice(0, 500);
             renderTarget.forEach(shelter => {
                 const marker = L.marker([shelter.lat, shelter.lng]);
                 marker.bindPopup(`
@@ -187,7 +251,6 @@
                 return;
             }
 
-            // 리스트는 최대 200개까지만 렌더링하여 브라우저 속도 유지
             shelters.slice(0, 200).forEach(shelter => {
                 const item = document.createElement('div');
                 item.className = 'shelter-item';
