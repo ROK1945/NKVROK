@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>K-C4I 전술 워게임 & 실시간 위협 시뮬레이터</title>
+    <title>K-C4I 전술 워게임 & 실시간 위협 시뮬레이터 (Ultimate v4)</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     
+    <!-- 공간 기하학 연산용 Turf.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #05070a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
@@ -16,52 +19,54 @@
 
         #sidebar { width: 480px; min-width: 360px; background: rgba(11, 15, 25, 0.95); border-right: 1px solid #1e293b; display: flex; flex-direction: column; padding: 15px; z-index: 1000; overflow-y: auto; backdrop-filter: blur(5px); }
         #map-wrapper { flex-grow: 1; height: 100%; position: relative; }
-        #map { width: 100%; height: 100%; z-index: 1; background: #000; }
+        #map { width: 100%; height: 100%; z-index: 1; background: #0b0f19; }
 
-        h1 { font-size: 16px; margin-bottom: 12px; color: #00d2d3; border-bottom: 2px solid #00d2d3; padding-bottom: 6px; letter-spacing: 0.5px; }
+        .cbrn-mode-active #map { cursor: crosshair !important; }
+
+        h1 { font-size: 15px; margin-bottom: 10px; color: #00d2d3; border-bottom: 2px solid #00d2d3; padding-bottom: 6px; letter-spacing: 0.5px; }
         
-        .control-group { margin-bottom: 12px; background: #131a26; padding: 10px; border-radius: 4px; border: 1px solid #293445; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
-        label { display: block; font-size: 11px; margin-bottom: 5px; color: #94a3b8; font-weight: bold; }
+        .control-group { margin-bottom: 10px; background: #131a26; padding: 10px; border-radius: 4px; border: 1px solid #293445; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        label { display: block; font-size: 11px; margin-bottom: 4px; color: #94a3b8; font-weight: bold; }
         select, input, button { width: 100%; padding: 8px; background: #1e293b; border: 1px solid #334155; color: #fff; border-radius: 3px; font-size: 12px; outline: none; }
         
         .btn-action { font-weight: bold; cursor: pointer; transition: 0.2s; border: none; color: #fff; }
         .btn-action:hover { filter: brightness(1.2); box-shadow: 0 0 8px rgba(255,255,255,0.2); }
         
         .layer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
-        .layer-btn { font-size: 11px; padding: 8px; font-weight: bold; border-radius: 4px; border: 1px solid #334155; background: #1e293b; cursor: pointer; color: #94a3b8; transition: 0.3s; }
-        .layer-btn.active { color: #fff; box-shadow: inset 0 0 10px rgba(255,255,255,0.2); }
+        .layer-btn { font-size: 11px; padding: 8px; font-weight: bold; border-radius: 4px; border: 1px solid #334155; background: #1e293b; cursor: pointer; color: #94a3b8; transition: 0.3s; text-align: center; }
+        .layer-btn.active { color: #fff; background: #0f766e; border-color: #14b8a6; box-shadow: inset 0 0 10px rgba(255,255,255,0.2); }
         
         .timeline-controls { display: flex; gap: 4px; margin-top: 5px; }
         #timeline-slider { width: 100%; margin-top: 5px; accent-color: #ef4444; cursor: pointer; }
         #phase-box { background: #0f172a; border-left: 3px solid #ef4444; padding: 8px; font-size: 11px; line-height: 1.4; margin-top: 6px; color: #cbd5e1; font-family: monospace; }
         
-        #shelter-list-container { max-height: 120px; overflow-y: auto; margin-top: 4px; border: 1px solid #1e293b; background: #0b0f19; padding: 4px; }
+        #shelter-list-container { max-height: 110px; overflow-y: auto; margin-top: 4px; border: 1px solid #1e293b; background: #0b0f19; padding: 4px; }
         .shelter-item { padding: 6px; border-bottom: 1px solid #1e293b; font-size: 11px; cursor: pointer; color: #e2e8f0; }
         .shelter-item:hover { background: #1e293b; color: #00d2d3; }
         
-        #status-msg { position: absolute; top: 12px; right: 12px; background: rgba(15, 23, 42, 0.9); padding: 8px 12px; border-radius: 4px; font-size: 11px; border-left: 3px solid #00d2d3; z-index: 2000; color: #00d2d3; font-family: monospace; backdrop-filter: blur(4px); transition: 0.3s; }
+        #status-msg { position: absolute; top: 12px; right: 12px; background: rgba(15, 23, 42, 0.9); padding: 8px 12px; border-radius: 4px; font-size: 11px; border-left: 3px solid #00d2d3; z-index: 2000; color: #00d2d3; font-family: monospace; backdrop-filter: blur(4px); }
 
-        /* MIL-STD 부대 제대 표시 (XX, XXX) 지원 심볼 */
+        /* MIL-STD 심볼 스타일 */
         .mil-sym { display: flex; align-items: center; justify-content: center; position: relative; border: 1.5px solid #000; box-shadow: 0 0 6px rgba(0,0,0,0.8); }
         .sym-friendly { width: 28px; height: 18px; background: #3b82f6; }
         .sym-hostile { width: 24px; height: 24px; background: #ef4444; transform: rotate(45deg); }
         .sym-hostile .icon-wrapper { transform: rotate(-45deg); display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; }
         
-        /* 제대 크기 표시 (Echelon) */
         .echelon-xx::before { content: 'XX'; position: absolute; top: -14px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 0 2px #000; transform: rotate(0deg) !important; }
         .echelon-xxx::before { content: 'XXX'; position: absolute; top: -14px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 0 2px #000; transform: rotate(0deg) !important; }
-        .sym-hostile.echelon-xxx::before { top: -20px; transform: rotate(-45deg) !important; } /* 마름모 회전 보정 */
-        .sym-hostile.echelon-xx::before { top: -20px; transform: rotate(-45deg) !important; }
+        .sym-hostile.echelon-xxx::before, .sym-hostile.echelon-xx::before { top: -20px; transform: rotate(-45deg) !important; }
 
         .ic-armor::after { content: 'O'; font-family: sans-serif; font-size: 10px; font-weight: bold; color: #fff;}
         .ic-infantry::after { content: 'X'; font-family: sans-serif; font-size: 10px; font-weight: bold; color: #fff;}
         .ic-artillery::after { content: '●'; font-size: 12px; color: #fff;}
+        .ic-hq::after { content: 'HQ'; font-size: 9px; font-weight: bold; color: #fff;}
         
-        /* 실시간 위협 맥박 링 */
         .live-threat-ring { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #facc15; animation: livePulse 1s infinite ease-out; position: absolute; left: -20px; top: -20px; }
         @keyframes livePulse { 0% { transform: scale(0.1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
         
         .rv-btn { display: inline-block; margin-top: 6px; padding: 4px 8px; background: #fee500; color: #191919; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px; }
+
+        .cbrn-marker { display: flex; align-items: center; justify-content: center; font-size: 24px; text-shadow: 0 0 10px #ef4444; }
 
         #mobile-nav { display: none; }
         @media (max-width: 768px) {
@@ -77,22 +82,27 @@
 <body>
 
     <div id="sidebar">
-        <h1>[C4I] 실시간 위협망 & 영토 워게임 시뮬레이터</h1>
+        <h1>[C4I] 전술 워게임 & 실시간 위협 통제</h1>
         
-        <!-- 실시간 OSINT 위협 동기화 -->
         <div class="control-group">
-            <label style="color: #facc15;">🛰️ 실시간 전장 정보 통제</label>
-            <button class="btn-action" id="btn-live-sync" style="background: #ca8a04; padding: 10px; font-size: 13px;">📡 실시간 OSINT 위협망 최신화 (LIVE)</button>
+            <label style="color: #facc15;">🛰️ 실시간 위협망 및 기상 연동</label>
+            <div style="display: flex; gap: 4px;">
+                <button class="btn-action" id="btn-live-sync" style="background: #ca8a04; flex: 1; padding: 8px;">📡 2026 실시간 위협 동기화</button>
+                <button class="btn-action" id="btn-cbrn-mode" style="background: #be123c; flex: 1; border: 2px solid #9f1239; padding: 8px;">☢️ CBRN 타격 모드</button>
+            </div>
+            <div id="cbrn-guide" style="display: none; margin-top: 6px; padding: 6px; background: #4c0519; border-left: 3px solid #f43f5e; font-size: 11px; color: #fda4af;">
+                [조준경 활성화] 타격 지점을 클릭하면 실시간 풍속/풍향 기반 낙진 피해 구역(Plume)이 그려집니다.
+            </div>
         </div>
 
         <div class="control-group">
-            <label>페이즈(Phase)별 전면전 영토 분쟁 시나리오</label>
+            <label>전면전 페이즈별 영토 분쟁 시나리오</label>
             <select id="wargame-scenario">
-                <option value="defend" selected>[OPLAN 5027] 기습 허용 및 지연전 후 반격 (D+100)</option>
+                <option value="defend" selected>[OPLAN 5027] 기습 방어 및 지연전 후 반격 (D+100)</option>
                 <option value="attack">[OPLAN 5015] 선제타격 및 초고속 북진 (D+100)</option>
             </select>
             <div style="margin-top: 6px;">
-                <label>전황 타임라인 및 영토 변화 (현재: <span id="day-label" style="color:#00d2d3;">D-Day</span>)</label>
+                <label>영토 변화 타임라인 (현재: <span id="day-label" style="color:#00d2d3;">D-Day</span>)</label>
                 <input type="range" id="timeline-slider" min="0" max="100" value="0">
                 <div class="timeline-controls">
                     <button class="btn-action" id="btn-play" style="background:#059669;">▶ 작전 재생</button>
@@ -100,35 +110,35 @@
                     <button class="btn-action" id="btn-undo" style="background:#475569;">초기화</button>
                 </div>
             </div>
-            <div id="phase-box">전술 데이터 로드 완료. 대기 상태입니다.</div>
+            <div id="phase-box">시스템 준비 완료. 대기 상태.</div>
         </div>
 
         <div class="control-group">
-            <label>전술 데이터 레이어 (다중 토글)</label>
+            <label>전술 데이터 레이어 (개별 토글)</label>
             <div class="layer-grid">
-                <button class="layer-btn active" id="toggle-forces" style="border-color:#3b82f6;">⚔️ 전력 심볼(제대 표시)</button>
-                <button class="layer-btn active" id="toggle-missiles" style="border-color:#ef4444;">🚀 과거 미사일 도발 궤적</button>
-                <button class="layer-btn active" id="toggle-provoc" style="border-color:#9333ea;">🏴 역사적 도발/땅굴망</button>
-                <button class="layer-btn active" id="toggle-shelters" style="border-color:#10b981;">🛡️ 대피소 및 보급로</button>
+                <button class="layer-btn active" id="toggle-forces">⚔️ 피아 군사전력 심볼</button>
+                <button class="layer-btn active" id="toggle-provoc">🏴 역사적 충돌 및 땅굴망</button>
+                <button class="layer-btn active" id="toggle-missiles">🚀 미사일 도발 및 궤적</button>
+                <button class="layer-btn active" id="toggle-shelters">🛡️ 전국 민방위 대피소</button>
             </div>
         </div>
 
         <div class="control-group">
-            <label>🌍 전 세계 지명 및 대피소 정밀 검색 (Geocoding)</label>
+            <label>🌍 지명 및 대피소 검색 (Geocoding)</label>
             <div style="display: flex; gap: 4px;">
-                <input type="text" id="search-input" placeholder="지역명(예: 강남구, 평양) 또는 대피소명">
+                <input type="text" id="search-input" placeholder="강남구, 평양, 연평도 등 입력">
                 <button class="btn-action" id="btn-search" style="width:60px; margin-top:0; background:#0284c7;">검색</button>
             </div>
         </div>
 
         <div id="shelter-list-container">
-            <div style="text-align: center; color: #475569; padding: 10px;">대피소 데이터 파싱 중...</div>
+            <div style="text-align: center; color: #475569; padding: 10px;">대피소 데이터 대기 중...</div>
         </div>
     </div>
 
     <div id="map-wrapper">
         <div id="map"></div>
-        <div id="status-msg">C4I System Ready.</div>
+        <div id="status-msg">C4I System Initialized.</div>
     </div>
 
     <div id="mobile-nav">
@@ -140,22 +150,24 @@
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
     <script>
-        const VWORLD_API = "AB8056F3-8810-4503-9544-FA9F94BB07C1";
         let map;
         let shelterDataList = [];
         let clusterGroup;
         
         let layers = {
-            forces: L.layerGroup(), provoc: L.layerGroup(),
-            missiles: L.layerGroup(), shelters: L.layerGroup(),
-            territory: L.layerGroup(), // 영토 땅따먹기 폴리곤
-            live: L.layerGroup() // 실시간 위협 연동
+            forces: L.layerGroup(), 
+            provoc: L.layerGroup(),
+            missiles: L.layerGroup(), 
+            shelters: L.layerGroup(),
+            territory: L.layerGroup(), 
+            live: L.layerGroup(),
+            cbrn: L.layerGroup()
         };
         let playInterval = null;
+        let cbrnModeActive = false;
 
         const getRoadviewBtn = (lat, lng) => `<a href="https://map.kakao.com/link/roadview/${lat},${lng}" target="_blank" class="rv-btn">👀 로드뷰 정찰</a>`;
 
-        // MIL-STD 심볼 제대(Echelon) 크기 추가
         const getMilIcon = (type, sym, echelon="") => L.divIcon({
             className: '',
             html: type === 'hostile' 
@@ -164,29 +176,66 @@
             iconSize: [24,24], iconAnchor: [12,12]
         });
 
+        // 1. 군사 전력 데이터 (아군 익명화 + 북한 핵심 타겟)
         const FORCES_DATA = [
-            { type: 'friendly', symbol: 'hq', echelon:'xxx', name: '지상작전사령부', lat: 37.23, lng: 127.11 },
-            { type: 'friendly', symbol: 'armor', echelon:'xx', name: '제A기동사단', lat: 37.78, lng: 126.88 },
-            { type: 'hostile', symbol: 'infantry', echelon:'xxx', name: '제1군단 전선사령부', lat: 38.50, lng: 126.50 },
-            { type: 'hostile', symbol: 'armor', echelon:'xx', name: '제820전차군단', lat: 38.60, lng: 126.10 },
-            { type: 'hostile', symbol: 'hq', echelon:'', name: '풍계리 핵실험장', lat: 41.28, lng: 129.08 }
+            { type: 'friendly', symbol: 'hq', echelon:'xxx', name: '핵심 지휘통제소', lat: 37.45, lng: 126.95, desc: '수도권 전략 통제' },
+            { type: 'friendly', symbol: 'armor', echelon:'xx', name: '전방 기동군단', lat: 37.78, lng: 126.88, desc: '기계화 방어' },
+            { type: 'hostile', symbol: 'infantry', echelon:'xxx', name: '제1군단 전선사령부', lat: 38.50, lng: 126.50, desc: '남침 주공 군단' },
+            { type: 'hostile', symbol: 'armor', echelon:'xx', name: '제820전차군단', lat: 38.60, lng: 126.10, desc: '수도권 돌파 기갑' },
+            { type: 'hostile', symbol: 'artillery', echelon:'', name: '곡산 170mm 갱도포병단', lat: 38.55, lng: 126.68, desc: '수도권 위협 장사정포' },
+            { type: 'hostile', symbol: 'hq', echelon:'', name: '영변 핵시설', lat: 39.80, lng: 125.75, desc: '핵물질 생산 표적' },
+            { type: 'hostile', symbol: 'hq', echelon:'', name: '풍계리 핵실험장', lat: 41.28, lng: 129.08, desc: '지하 핵실험 시설' }
+        ];
+
+        // 2. 역사적 충돌 및 땅굴망 데이터 완벽 탑재
+        const PROVOC_DATA = [
+            { name: "천안함 피격 사건 (2010)", lat: 37.917, lng: 124.600, icon: "⚓", desc: "백령도 서남방 해상 어뢰 피격" },
+            { name: "연평도 포격전 (2010)", lat: 37.666, lng: 125.703, icon: "🔥", desc: "해안포 기습 포격 도발" },
+            { name: "제1땅굴 (1974)", lat: 38.250, lng: 127.083, icon: "🕳️", desc: "연천 고랑포 일대 남침 터널" },
+            { name: "제2땅굴 (1975)", lat: 38.283, lng: 127.150, icon: "🕳️", desc: "철원 대규모 침투 터널" },
+            { name: "제3땅굴 (1978)", lat: 37.933, lng: 126.983, icon: "🕳️", desc: "파주 (서울 불과 52km 거리)" },
+            { name: "제4땅굴 (1990)", lat: 38.316, lng: 128.016, icon: "🕳️", desc: "양구 동부전선 침투 터널" },
+            { name: "판문점 도끼만행 (1976)", lat: 37.956, lng: 126.677, icon: "⚔️", desc: "JSA 공동경비구역 무력 도발" }
+        ];
+
+        // 3. 미사일 도발 및 궤적 데이터
+        const MISSILE_DATA = [
+            { name: "화성-17형 ICBM", oLat: 39.20, oLng: 125.67, tLat: 40.10, tLng: 139.50, desc: "순안 발사 -> 동해상 낙하" },
+            { name: "KN-23 단거리 탄도미사일", oLat: 39.15, oLng: 127.45, tLat: 39.50, tLng: 128.10, desc: "원산 발사 -> 동해 탄착" },
+            { name: "극초음속 미사일", oLat: 40.52, oLng: 126.15, tLat: 41.20, tLng: 129.80, desc: "자강도 발사 -> 함북 앞바다 낙하" }
         ];
 
         function initMap() {
+            // CartoDB 다크맵 타일 적용 (안정적인 로딩 보장)
             map = L.map('map', { maxZoom: 18, minZoom: 5, zoomControl: false }).setView([37.5, 127.0], 7);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap & CARTO',
+                maxZoom: 19
+            }).addTo(map);
 
             clusterGroup = L.markerClusterGroup({ chunkedLoading: true, disableClusteringAtZoom: 13, maxClusterRadius: 50 });
             layers.shelters = clusterGroup;
 
             Object.values(layers).forEach(l => map.addLayer(l));
             
-            // 전력 심볼 렌더링
+            // 정적 전력 및 도발 레이어 렌더링
             FORCES_DATA.forEach(f => L.marker([f.lat, f.lng], {icon: getMilIcon(f.type, f.symbol, f.echelon)})
-                .bindPopup(`<b>${f.name}</b><br>${getRoadviewBtn(f.lat, f.lng)}`).addTo(layers.forces));
+                .bindPopup(`<b>${f.name}</b><br>${f.desc}<br>${getRoadviewBtn(f.lat, f.lng)}`).addTo(layers.forces));
+
+            PROVOC_DATA.forEach(p => {
+                const i = L.divIcon({ className: '', html: `<div style="font-size:18px; text-shadow:0 0 4px #000;">${p.icon}</div>`, iconSize:[20,20] });
+                L.marker([p.lat, p.lng], {icon: i}).bindPopup(`<b>${p.name}</b><br>${p.desc}<br>${getRoadviewBtn(p.lat, f.lng)}`).addTo(layers.provoc);
+            });
+
+            MISSILE_DATA.forEach(m => {
+                L.circleMarker([m.oLat, m.oLng], {radius: 5, color:'#ef4444', fillColor:'#ef4444', fillOpacity:1}).bindPopup(`[발사원점] ${m.name}`).addTo(layers.missiles);
+                L.circleMarker([m.tLat, m.tLng], {radius: 5, color:'#eab308', fillColor:'#eab308', fillOpacity:1}).bindPopup(`[착탄점] ${m.name}`).addTo(layers.missiles);
+                L.polyline([[m.oLat, m.oLng], [m.tLat, m.tLng]], {color: '#ef4444', weight: 2, dashArray: '4,4'}).bindPopup(m.desc).addTo(layers.missiles);
+            });
             
-            // 토글 제어
+            // 레이어 토글 버튼 제어
             document.querySelectorAll('.layer-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = e.target.id.replace('toggle-', '');
@@ -198,119 +247,139 @@
             document.getElementById('timeline-slider').addEventListener('input', (e) => updateTimeline(parseInt(e.target.value)));
             updateTimeline(0);
             loadShelterCSV();
+
+            // 지도 클릭 (CBRN 타격)
+            map.on('click', async (e) => {
+                if(!cbrnModeActive) return;
+                const lat = e.latlng.lat, lng = e.latlng.lng;
+                showMsg(`⏳ 기상청 실시간 풍향/풍속 수신 중...`);
+                layers.cbrn.clearLayers();
+
+                try {
+                    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=windspeed_10m,winddirection_10m`);
+                    const data = await res.json();
+                    const windSpeed = data.current.windspeed_10m;
+                    const windDir = data.current.winddirection_10m;
+                    
+                    let downwind = (windDir + 180) % 360;
+                    if (downwind > 180) downwind -= 360;
+                    const plumeDistance = Math.max(20, windSpeed * 2);
+
+                    const gzIcon = L.divIcon({ className: 'cbrn-marker', html: `☢️`, iconSize:[30,30] });
+                    L.marker([lat, lng], {icon: gzIcon}).bindPopup(`<b>💥 Ground Zero</b><br>위치: ${lat.toFixed(3)}, ${lng.toFixed(3)}`).addTo(layers.cbrn);
+
+                    const plumeSector = turf.sector([lng, lat], plumeDistance, downwind - 25, downwind + 25, {units: 'kilometers'});
+                    L.geoJSON(plumeSector, {
+                        style: { color: '#facc15', weight: 2, fillColor: '#ef4444', fillOpacity: 0.45, dashArray: '5,5' }
+                    }).bindPopup(`<b>☢️ CBRN 오염 구역</b><br>풍속: ${windSpeed} km/h<br>확산반경: 약 ${plumeDistance.toFixed(1)}km`).addTo(layers.cbrn);
+                    
+                    showMsg(`☣️ 낙진 시뮬레이션 완료 (반경 ${plumeDistance.toFixed(0)}km)`);
+                    map.fitBounds(L.geoJSON(plumeSector).getBounds(), { padding: [30, 30] });
+                } catch (err) {
+                    showMsg(`❌ 기상 API 수신 실패`);
+                }
+            });
         }
 
         // ==========================================
-        // 1. 다이내믹 영토 변화 (땅따먹기 알고리즘)
+        // 실시간 OSINT 위협 동기화 버튼 (최신 동향 반영)
         // ==========================================
+        document.getElementById('btn-live-sync').addEventListener('click', () => {
+            showMsg("📡 2026년 최신 OSINT 데이터망 동기화 중...");
+            layers.live.clearLayers();
+            setTimeout(() => {
+                const liveThreats = [
+                    { name: "서해 NLL 인근 GPS 전파 감밍", lat: 37.95, lng: 125.10, desc: "해주/개성 일대 전자전 장비 출력 강화 탐지" },
+                    { name: "북한 대남 정찰총국 사이버 교란 징후", lat: 39.03, lng: 125.75, desc: "주요 국가 기반시설 대상 IP 트래픽 급증 감지" },
+                    { name: "동창리 서해위성발사장 엔진 연소 시험", lat: 39.66, lng: 124.70, desc: "신형 고체연료 대륙간탄도미사일(ICBM) 관련 징후 포착" }
+                ];
+                liveThreats.forEach(t => {
+                    const icon = L.divIcon({ className: '', html: `<div class="live-threat-ring"></div><div style="font-size:16px;">⚠️</div>`, iconSize:[20,20] });
+                    L.marker([t.lat, t.lng], {icon: icon}).bindPopup(`<b>🔴 [2026 LIVE] ${t.name}</b><br>${t.desc}<br>${getRoadviewBtn(t.lat, t.lng)}`).addTo(layers.live);
+                });
+                showMsg(`🔴 최신 실시간 위협 정보 지도 매핑 완료`);
+                map.flyTo([38.5, 126.0], 8);
+            }, 800);
+        });
+
+        // CBRN 타격 모드 토글
+        document.getElementById('btn-cbrn-mode').addEventListener('click', (e) => {
+            cbrnModeActive = !cbrnModeActive;
+            const bodyWrapper = document.getElementById('map-wrapper');
+            const guide = document.getElementById('cbrn-guide');
+            if (cbrnModeActive) {
+                e.target.style.background = '#f43f5e';
+                e.target.textContent = "☢️ CBRN 모드 [작동 중]";
+                bodyWrapper.classList.add('cbrn-mode-active');
+                guide.style.display = 'block';
+                showMsg(`☣️ 지도 위를 클릭하여 타격 지점을 지정하세요.`);
+            } else {
+                e.target.style.background = '#be123c';
+                e.target.textContent = "☢️ CBRN 타격 모드";
+                bodyWrapper.classList.remove('cbrn-mode-active');
+                guide.style.display = 'none';
+                layers.cbrn.clearLayers();
+                showMsg(`CBRN 모드 해제됨.`);
+            }
+        });
+
+        // 영토 변화 타임라인
         function updateTimeline(day) {
             document.getElementById('day-label').textContent = day === 0 ? 'D-Day' : `D+${day}`;
             layers.territory.clearLayers();
             const sce = document.getElementById('wargame-scenario').value;
             let msg = '';
-
-            // 기본 영토 경계
-            let boundsSouth = [[33.0, 124.0], [33.0, 131.0]];
-            let boundsNorth = [[43.0, 124.0], [43.0, 131.0]];
-            let flotLat = 38.0; // 휴전선
+            let bSouth = [[33.0, 124.0], [33.0, 131.0]], bNorth = [[43.0, 124.0], [43.0, 131.0]];
+            let flotLat = 38.0;
 
             if (day === 0) {
-                msg = "평시 경계. 타임라인을 움직여 시나리오를 구동하십시오.";
-                // 기본 영토 그리기
-                L.polygon([...boundsSouth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#3b82f6', fillOpacity: 0.1, weight:1}).addTo(layers.territory);
-                L.polygon([...boundsNorth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#ef4444', fillOpacity: 0.1, weight:1}).addTo(layers.territory);
+                msg = "평시 작전 통제 중. 타임라인을 움직여 시나리오를 구동하십시오.";
+                L.polygon([...bSouth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#3b82f6', fillOpacity: 0.1, weight:1}).addTo(layers.territory);
+                L.polygon([...bNorth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#ef4444', fillOpacity: 0.1, weight:1}).addTo(layers.territory);
                 L.polyline([[flotLat, 124.0], [flotLat, 131.0]], {color: '#94a3b8', weight: 3, dashArray: '5,5'}).addTo(layers.territory);
             } else {
                 if (sce === 'defend') {
-                    // [지연전] Phase 1(밀림) -> Phase 2(반격)
-                    if (day <= 30) {
-                        flotLat = 38.0 - (day * 0.04); // 한강 이남까지 남하
-                        msg = `[Phase 1] 적 기습 돌파. 전선 남하 중 (위도 ${flotLat.toFixed(1)}). 아군 지연전 수행.`;
-                    } else if (day <= 50) {
-                        flotLat = 38.0 - (30 * 0.04); // 고착
-                        msg = `[Phase 2] 전선 고착 및 증원 병력(TPFDD) 전개.`;
-                    } else {
-                        flotLat = (38.0 - 1.2) + ((day - 50) * 0.08); // 폭풍 북진
-                        msg = `[Phase 3] 총반격 개시. 북진 중 (위도 ${flotLat.toFixed(1)}).`;
-                    }
+                    if (day <= 30) { flotLat = 38.0 - (day * 0.04); msg = `[Phase 1] 적 돌파. 전선 남하 중 (위도 ${flotLat.toFixed(1)}). 지연전 수행.`; } 
+                    else if (day <= 50) { flotLat = 38.0 - (30 * 0.04); msg = `[Phase 2] 전선 고착 및 미 증원군(TPFDD) 전개.`; } 
+                    else { flotLat = (38.0 - 1.2) + ((day - 50) * 0.08); msg = `[Phase 3] 총반격 개시. 북진 중 (위도 ${flotLat.toFixed(1)}).`; }
                 } else {
-                    // [선제타격] 처음부터 끝까지 북진
                     flotLat = 38.0 + (day * 0.04); 
                     msg = `[선제공세] 공중우세 장악 및 기갑부대 북진 (위도 ${flotLat.toFixed(1)}).`;
                 }
-
-                // 영토 폴리곤 업데이트 (땅따먹기 시각화)
-                L.polygon([...boundsSouth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.35, weight:2}).addTo(layers.territory);
-                L.polygon([...boundsNorth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.2, weight:1}).addTo(layers.territory);
+                L.polygon([...bSouth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.35, weight:2}).addTo(layers.territory);
+                L.polygon([...bNorth, [flotLat, 131.0], [flotLat, 124.0]], {color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.2, weight:1}).addTo(layers.territory);
                 L.polyline([[flotLat, 124.0], [flotLat, 131.0]], {color: '#fff', weight: 4, opacity: 0.8}).bindPopup('현재 최전선 (FLOT)').addTo(layers.territory);
             }
             document.getElementById('phase-box').innerHTML = msg;
         }
 
-        // ==========================================
-        // 2. 통합 지명/주소 검색망 버그 완벽 수정
-        // ==========================================
+        // 지명 및 대피소 검색
         document.getElementById('btn-search').addEventListener('click', async () => {
             const kw = document.getElementById('search-input').value.trim();
             if(!kw) return;
             showMsg(`🔍 [${kw}] 검색 중...`);
             
-            // 1차: 로컬 대피소 DB 검색
             const matched = shelterDataList.filter(s => s.fullName.includes(kw) || s.addr.includes(kw));
             if (matched.length > 0) {
                 map.flyTo([matched[0].lat, matched[0].lng], 15);
-                showMsg(`📍 [${kw}] 관련 대피소 ${matched.length}곳 발견 및 이동`);
+                showMsg(`📍 [${kw}] 대피소 ${matched.length}곳 발견`);
                 return;
             }
 
-            // 2차: 글로벌 지명 검색 (OpenStreetMap API) - 위치 이동 해결!
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(kw)}&countrycodes=kr,kp`);
                 const data = await res.json();
                 if(data && data.length > 0) {
-                    const lat = parseFloat(data[0].lat);
-                    const lon = parseFloat(data[0].lon);
-                    map.flyTo([lat, lon], 12);
-                    
-                    // 검색 위치에 임시 마커 생성
-                    L.marker([lat, lon]).addTo(layers.territory).bindPopup(`<b>검색 지점:</b> ${data[0].display_name}`).openPopup();
-                    showMsg(`📍 글로벌 지명 이동 완료`);
-                } else {
-                    showMsg(`⚠️ 검색 결과를 찾을 수 없습니다.`);
-                }
-            } catch(e) { showMsg(`❌ 검색 서버 네트워크 오류`); }
+                    map.flyTo([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12);
+                    L.marker([parseFloat(data[0].lat), parseFloat(data[0].lon)]).addTo(layers.territory).bindPopup(`<b>검색 지점:</b> ${data[0].display_name}`).openPopup();
+                    showMsg(`📍 지명 이동 완료`);
+                } else showMsg(`⚠️ 검색 결과를 찾을 수 없습니다.`);
+            } catch(e) { showMsg(`❌ 검색 서버 오류`); }
         });
 
-        // ==========================================
-        // 3. 실시간 OSINT 위협망 데이터 동기화 (LIVE)
-        // ==========================================
-        document.getElementById('btn-live-sync').addEventListener('click', () => {
-            showMsg("📡 실시간 국방/OSINT 데이터망 접속 중...");
-            layers.live.clearLayers();
-            
-            // 실시간 데이터 수신 딜레이 시뮬레이션
-            setTimeout(() => {
-                const liveThreats = [
-                    { name: "최근 북한 GPS 전파교란 발신지", lat: 38.03, lng: 125.71, desc: "해주 일대에서 수도권/인천공항 향해 GPS 감밍 전파 지속 발사 중." },
-                    { name: "대남 오물·쓰레기 풍선 부양 원점", lat: 38.30, lng: 126.50, desc: "바람을 타고 남하 중 (풍향 확인 요망)." },
-                    { name: "최신 ICBM 화성-19형 도발", lat: 39.20, lng: 125.67, desc: "고각 발사 감지. 궤적 추적 시스템 가동 중." }
-                ];
-
-                liveThreats.forEach(t => {
-                    const icon = L.divIcon({ className: '', html: `<div class="live-threat-ring"></div><div style="font-size:16px;">⚠️</div>`, iconSize:[20,20] });
-                    L.marker([t.lat, t.lng], {icon: icon}).bindPopup(`<b>🔴 [LIVE 위협] ${t.name}</b><br>${t.desc}<br>${getRoadviewBtn(t.lat, t.lng)}`).addTo(layers.live);
-                });
-                
-                showMsg(`🔴 실시간 2026년 최신 도발 데이터 동기화 완료!`);
-                map.flyTo([38.2, 126.5], 8); // 위협 지역으로 카메라 이동
-            }, 1000);
-        });
-
-        // 유틸리티 함수
         function showMsg(text) { document.getElementById('status-msg').textContent = text; }
         document.getElementById('search-input').addEventListener('keydown', (e) => { if(e.key === 'Enter') document.getElementById('btn-search').click(); });
         
-        // 재생 컨트롤
         document.getElementById('btn-play').addEventListener('click', () => {
             if(playInterval) clearInterval(playInterval);
             playInterval = setInterval(() => {
