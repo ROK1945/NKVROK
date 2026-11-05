@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>K-C4I 전술 워게임 & 실시간 위협 시뮬레이터 (Ultimate v4)</title>
+    <title>K-C4I 전술 워게임 & 독립형 위협 시뮬레이터 (Ultimate v5)</title>
     
+    <!-- Leaflet & MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
@@ -65,7 +66,6 @@
         @keyframes livePulse { 0% { transform: scale(0.1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
         
         .rv-btn { display: inline-block; margin-top: 6px; padding: 4px 8px; background: #fee500; color: #191919; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px; }
-
         .cbrn-marker { display: flex; align-items: center; justify-content: center; font-size: 24px; text-shadow: 0 0 10px #ef4444; }
 
         #mobile-nav { display: none; }
@@ -82,7 +82,7 @@
 <body>
 
     <div id="sidebar">
-        <h1>[C4I] 전술 워게임 & 실시간 위협 통제</h1>
+        <h1>[C4I] 독립형 전술 워게임 플랫폼</h1>
         
         <div class="control-group">
             <label style="color: #facc15;">🛰️ 실시간 위협망 및 기상 연동</label>
@@ -138,7 +138,7 @@
 
     <div id="map-wrapper">
         <div id="map"></div>
-        <div id="status-msg">C4I System Initialized.</div>
+        <div id="status-msg">C4I System Initialized (No API Key Required).</div>
     </div>
 
     <div id="mobile-nav">
@@ -146,6 +146,7 @@
         <button class="nav-btn" id="tab-map" onclick="switchMobileTab('map')">상황도</button>
     </div>
 
+    <!-- Leaflet & MarkerCluster JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
@@ -176,7 +177,6 @@
             iconSize: [24,24], iconAnchor: [12,12]
         });
 
-        // 1. 군사 전력 데이터 (아군 익명화 + 북한 핵심 타겟)
         const FORCES_DATA = [
             { type: 'friendly', symbol: 'hq', echelon:'xxx', name: '핵심 지휘통제소', lat: 37.45, lng: 126.95, desc: '수도권 전략 통제' },
             { type: 'friendly', symbol: 'armor', echelon:'xx', name: '전방 기동군단', lat: 37.78, lng: 126.88, desc: '기계화 방어' },
@@ -187,7 +187,6 @@
             { type: 'hostile', symbol: 'hq', echelon:'', name: '풍계리 핵실험장', lat: 41.28, lng: 129.08, desc: '지하 핵실험 시설' }
         ];
 
-        // 2. 역사적 충돌 및 땅굴망 데이터 완벽 탑재
         const PROVOC_DATA = [
             { name: "천안함 피격 사건 (2010)", lat: 37.917, lng: 124.600, icon: "⚓", desc: "백령도 서남방 해상 어뢰 피격" },
             { name: "연평도 포격전 (2010)", lat: 37.666, lng: 125.703, icon: "🔥", desc: "해안포 기습 포격 도발" },
@@ -198,7 +197,6 @@
             { name: "판문점 도끼만행 (1976)", lat: 37.956, lng: 126.677, icon: "⚔️", desc: "JSA 공동경비구역 무력 도발" }
         ];
 
-        // 3. 미사일 도발 및 궤적 데이터
         const MISSILE_DATA = [
             { name: "화성-17형 ICBM", oLat: 39.20, oLng: 125.67, tLat: 40.10, tLng: 139.50, desc: "순안 발사 -> 동해상 낙하" },
             { name: "KN-23 단거리 탄도미사일", oLat: 39.15, oLng: 127.45, tLat: 39.50, tLng: 128.10, desc: "원산 발사 -> 동해 탄착" },
@@ -206,12 +204,12 @@
         ];
 
         function initMap() {
-            // CartoDB 다크맵 타일 적용 (안정적인 로딩 보장)
+            // 오픈스트리트맵(OSM) 기반 타일 사용 (API 키 발급 불필요, 100% 즉시 로딩)
             map = L.map('map', { maxZoom: 18, minZoom: 5, zoomControl: false }).setView([37.5, 127.0], 7);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap & CARTO',
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(map);
 
@@ -220,13 +218,12 @@
 
             Object.values(layers).forEach(l => map.addLayer(l));
             
-            // 정적 전력 및 도발 레이어 렌더링
             FORCES_DATA.forEach(f => L.marker([f.lat, f.lng], {icon: getMilIcon(f.type, f.symbol, f.echelon)})
                 .bindPopup(`<b>${f.name}</b><br>${f.desc}<br>${getRoadviewBtn(f.lat, f.lng)}`).addTo(layers.forces));
 
             PROVOC_DATA.forEach(p => {
                 const i = L.divIcon({ className: '', html: `<div style="font-size:18px; text-shadow:0 0 4px #000;">${p.icon}</div>`, iconSize:[20,20] });
-                L.marker([p.lat, p.lng], {icon: i}).bindPopup(`<b>${p.name}</b><br>${p.desc}<br>${getRoadviewBtn(p.lat, f.lng)}`).addTo(layers.provoc);
+                L.marker([p.lat, p.lng], {icon: i}).bindPopup(`<b>${p.name}</b><br>${p.desc}<br>${getRoadviewBtn(p.lat, p.lng)}`).addTo(layers.provoc);
             });
 
             MISSILE_DATA.forEach(m => {
@@ -235,7 +232,6 @@
                 L.polyline([[m.oLat, m.oLng], [m.tLat, m.tLng]], {color: '#ef4444', weight: 2, dashArray: '4,4'}).bindPopup(m.desc).addTo(layers.missiles);
             });
             
-            // 레이어 토글 버튼 제어
             document.querySelectorAll('.layer-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const id = e.target.id.replace('toggle-', '');
@@ -248,7 +244,6 @@
             updateTimeline(0);
             loadShelterCSV();
 
-            // 지도 클릭 (CBRN 타격)
             map.on('click', async (e) => {
                 if(!cbrnModeActive) return;
                 const lat = e.latlng.lat, lng = e.latlng.lng;
@@ -281,9 +276,6 @@
             });
         }
 
-        // ==========================================
-        // 실시간 OSINT 위협 동기화 버튼 (최신 동향 반영)
-        // ==========================================
         document.getElementById('btn-live-sync').addEventListener('click', () => {
             showMsg("📡 2026년 최신 OSINT 데이터망 동기화 중...");
             layers.live.clearLayers();
@@ -302,7 +294,6 @@
             }, 800);
         });
 
-        // CBRN 타격 모드 토글
         document.getElementById('btn-cbrn-mode').addEventListener('click', (e) => {
             cbrnModeActive = !cbrnModeActive;
             const bodyWrapper = document.getElementById('map-wrapper');
@@ -323,7 +314,6 @@
             }
         });
 
-        // 영토 변화 타임라인
         function updateTimeline(day) {
             document.getElementById('day-label').textContent = day === 0 ? 'D-Day' : `D+${day}`;
             layers.territory.clearLayers();
@@ -353,7 +343,6 @@
             document.getElementById('phase-box').innerHTML = msg;
         }
 
-        // 지명 및 대피소 검색
         document.getElementById('btn-search').addEventListener('click', async () => {
             const kw = document.getElementById('search-input').value.trim();
             if(!kw) return;
